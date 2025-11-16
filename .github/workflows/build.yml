@@ -260,6 +260,32 @@ jobs:
           echo "=== Release files ==="
           ls -la release_files/
           echo "====================="
+          
+          # 生成版本信息文件（用于 Release 描述）
+          cat > release_notes.md << 'EOF'
+          ## 📦 安装包说明
+          
+          ### Windows
+          - **MSI 安装包**：适用于 Windows 10/11 x64 系统
+          - **NSIS 安装程序**：带有更友好安装向导的版本
+          
+          ### macOS
+          - **DMG 磁盘镜像**：支持 Intel 和 Apple Silicon 芯片
+          - 最低系统要求：macOS 10.13+
+          
+          ### Linux
+          - **DEB 包**：适用于 Debian/Ubuntu 系统
+          - **AppImage**：通用 Linux 包，无需安装
+          
+          ## ✨ 主要功能
+          - 批量账号管理
+          - 自动注册功能（Windows）
+          - 一键登录编辑器
+          - 实时账号状态监控
+          
+          ## 📝 使用说明
+          请参考 [快速入门指南](https://github.com/chaogei/Verdent/blob/main/QUICK_START.md)
+          EOF
       
       - name: 创建 Release
         uses: softprops/action-gh-release@v1
@@ -267,7 +293,8 @@ jobs:
           draft: true
           generate_release_notes: true
           tag_name: "${{ github.ref_type == 'tag' && github.ref_name || format('manual-{0}', github.run_number) }}"
-          name: "${{ github.ref_type == 'tag' && github.ref_name || format('Manual Build #{0}', github.run_number) }}"
+          name: "${{ github.ref_type == 'tag' && format('Verdent账号管理器 {0}', github.ref_name) || format('Verdent账号管理器 测试版本 #{0}', github.run_number) }}"
+          body_path: release_notes.md
           files: release_files/*
           fail_on_unmatched_files: false
         env:
