@@ -134,6 +134,6 @@
 
 ## 相关链接
 
-- [项目主页](https://github.com/你的用户名/Verdent)
-- [问题反馈](https://github.com/你的用户名/Verdent/issues)
-- [发布页面](https://github.com/你的用户名/Verdent/releases)
+- [项目主页](https://github.com/chaogei/Verdent)
+- [问题反馈](https://github.com/chaogei/Verdent/issues)
+- [发布页面](https://github.com/chaogei/Verdent/releases)

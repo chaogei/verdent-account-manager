@@ -19,7 +19,7 @@
 
 ### 下载安装
 
-从 [Releases](https://github.com/你的用户名/Verdent/releases) 下载最新版本：
+从 [Releases](https://github.com/chaogei/Verdent/releases) 下载最新版本：
 
 - **Windows**: `Verdent账号管理器_1.0.0_x64.msi`
 - **macOS**: `Verdent账号管理器_1.0.0.dmg`
@@ -70,7 +70,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/你的用户名/Verdent.git
+git clone https://github.com/chaogei/Verdent.git
 
 # 安装依赖
 cd Verdent/Verdent_account_manger

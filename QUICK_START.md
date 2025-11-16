@@ -100,7 +100,7 @@
 
 ### 更多帮助
 - 查看完整文档: [README.md](README.md)
-- 提交问题: [GitHub Issues](https://github.com/你的用户名/Verdent/issues)
+- 提交问题: [GitHub Issues](https://github.com/chaogei/Verdent/issues)
 
 ---
 
