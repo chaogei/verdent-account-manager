@@ -245,55 +245,8 @@ class VerdentAutoRegister:
     def _create_browser(self) -> ChromiumPage:
         import tempfile
         import os
-        import platform
-        import subprocess
-        
-        # 检测Chrome浏览器路径
-        chrome_path = None
-        system = platform.system()
-        
-        if system == 'Windows':
-            # Windows Chrome 路径
-            possible_paths = [
-                r'C:\Program Files\Google\Chrome\Application\chrome.exe',
-                r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
-                os.path.expandvars(r'%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe'),
-            ]
-            for path in possible_paths:
-                if os.path.exists(path):
-                    chrome_path = path
-                    print(f"[✓] 找到Chrome浏览器: {chrome_path}", flush=True)
-                    break
-        elif system == 'Darwin':  # macOS
-            possible_paths = [
-                '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            ]
-            for path in possible_paths:
-                if os.path.exists(path):
-                    chrome_path = path
-                    print(f"[✓] 找到Chrome浏览器: {chrome_path}", flush=True)
-                    break
-        else:  # Linux
-            # 尝试通过which命令查找
-            try:
-                result = subprocess.run(['which', 'google-chrome'], capture_output=True, text=True)
-                if result.returncode == 0:
-                    chrome_path = result.stdout.strip()
-                else:
-                    result = subprocess.run(['which', 'chromium-browser'], capture_output=True, text=True)
-                    if result.returncode == 0:
-                        chrome_path = result.stdout.strip()
-            except:
-                pass
         
         options = ChromiumOptions()
-        
-        # 如果找到了Chrome路径，设置浏览器路径
-        if chrome_path:
-            options.set_browser_path(chrome_path)
-        else:
-            print("[!] 警告: 未找到Chrome浏览器，将使用系统默认浏览器", flush=True)
-        
         # 启用自动端口分配,支持多线程并发
         # 每个线程将使用独立的浏览器端口,避免端口冲突
         options.auto_port()
@@ -319,73 +272,20 @@ class VerdentAutoRegister:
         if os.name == 'nt':
             options.set_argument('--disable-gpu-sandbox')
         
-        # 尝试创建浏览器实例
-        page = None
-        last_error = None
-        
-        # 尝试不同的配置
-        configs_to_try = [
-            ("正常模式", options),
-        ]
-        
-        # 如果没有找到Chrome，尝试使用Edge（Windows）
-        if not chrome_path and system == 'Windows':
-            edge_path = r'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
-            if os.path.exists(edge_path):
-                edge_options = ChromiumOptions()
-                edge_options.set_browser_path(edge_path)
-                edge_options.auto_port()
-                edge_options.set_user_data_path(temp_dir)
-                if self.headless:
-                    edge_options.headless(True)
-                configs_to_try.append(("Edge浏览器", edge_options))
-        
-        for config_name, config_options in configs_to_try:
-            try:
-                print(f"[*] 尝试 {config_name} 启动浏览器...", flush=True)
-                page = ChromiumPage(addr_or_opts=config_options)
-                # 保存临时目录路径，以便后续清理
-                page._temp_user_data_dir = temp_dir
-                print(f"[✓] 浏览器启动成功 ({config_name})", flush=True)
-                return page
-            except Exception as e:
-                last_error = e
-                print(f"[!] {config_name} 失败: {e}", flush=True)
-                continue
-        
-        # 如果所有尝试都失败了，处理错误
-        if last_error:
-            # 清理临时目录
+        try:
+            page = ChromiumPage(addr_or_opts=options)
+            # 保存临时目录路径，以便后续清理
+            page._temp_user_data_dir = temp_dir
+            return page
+        except Exception as e:
+            # 如果创建失败，清理临时目录
             import shutil
             if os.path.exists(temp_dir):
                 try:
                     shutil.rmtree(temp_dir, ignore_errors=True)
                 except:
                     pass
-            
-            if isinstance(last_error, ValueError):
-                # 特殊处理 "not enough values to unpack" 错误
-                error_msg = str(last_error)
-                if "not enough values to unpack" in error_msg:
-                    print("[×] DrissionPage 连接浏览器失败", flush=True)
-                    print("[!] 可能原因：", flush=True)
-                    print("    1. Chrome/Chromium浏览器未安装", flush=True)
-                    print("    2. 浏览器版本过旧", flush=True)
-                    print("    3. DrissionPage与浏览器版本不兼容", flush=True)
-                    print("[!] 建议使用无头模式或安装Chrome浏览器", flush=True)
-                    print(f"[!] 原始错误: {error_msg}", flush=True)
-                    
-                    # 尝试使用无头模式重试
-                    if not self.headless:
-                        print("[*] 尝试使用无头模式重试...", flush=True)
-                        self.headless = True
-                        return self._create_browser()
-            
-            print(f"[×] 创建浏览器失败: {last_error}", flush=True)
-            raise last_error
-        
-        # 如果没有错误记录但也没有成功创建
-        raise Exception("无法启动浏览器")
+            raise e
     
     def _check_browser_alive(self, page: ChromiumPage) -> bool:
         """

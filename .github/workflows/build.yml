@@ -93,70 +93,16 @@ jobs:
       - name: 打包 Python 脚本 (Windows)
         if: matrix.platform == 'windows-latest'
         run: |
-          # 动态生成 spec 文件
-          $specContent = @'
-          # -*- mode: python ; coding: utf-8 -*-
-          import sys
+          # 使用构建脚本打包
+          python build_exe.py
           
-          a = Analysis(
-              ['verdent_auto_register.py'],
-              pathex=[],
-              binaries=[],
-              datas=[],
-              hiddenimports=['DrissionPage', 'requests', 'urllib3', 'json', 're', 'uuid'],
-              hookspath=[],
-              hooksconfig={},
-              runtime_hooks=[],
-              excludes=['tkinter', 'matplotlib', 'numpy', 'pandas'],
-              noarchive=False,
-          )
-          
-          pyz = PYZ(a.pure, a.zipped_data, cipher=None)
-          
-          exe = EXE(
-              pyz,
-              a.scripts,
-              a.binaries,
-              a.zipfiles,
-              a.datas,
-              [],
-              name='verdent_auto_register',
-              debug=False,
-              bootloader_ignore_signals=False,
-              strip=False,
-              upx=True,
-              upx_exclude=[],
-              runtime_tmpdir=None,
-              console=True,
-              disable_windowed_traceback=False,
-              argv_emulation=False,
-              target_arch=None,
-              codesign_identity=None,
-              entitlements_file=None,
-              icon='Verdent_account_manger/src-tauri/icons/icon.ico'
-          )
-          '@
-          
-          # 写入 spec 文件
-          Set-Content -Path "verdent_auto_register.spec" -Value $specContent -Encoding UTF8
-          Write-Output "Generated spec file"
-          
-          # 使用 spec 文件打包
-          pyinstaller --clean verdent_auto_register.spec
-          
-          if (!(Test-Path "dist\verdent_auto_register.exe")) {
+          # 验证文件是否存在
+          if (!(Test-Path "Verdent_account_manger\resources\verdent_auto_register.exe")) {
             Write-Error "Failed to build Python executable"
             exit 1
           }
           
-          # 获取文件大小
-          $exeSize = (Get-Item "dist\verdent_auto_register.exe").Length / 1MB
-          Write-Output "Python executable built successfully: $([math]::Round($exeSize, 2)) MB"
-          
-          # 创建 resources 目录并复制文件
-          New-Item -ItemType Directory -Path "Verdent_account_manger\resources" -Force
-          Copy-Item "dist\verdent_auto_register.exe" "Verdent_account_manger\resources\verdent_auto_register.exe" -Force
-          Write-Output "Copied to resources directory"
+          Write-Output "Python executable built and copied successfully"
 
       # macOS 和 Linux：复制 Python 脚本和启动器
       - name: 准备 Python 脚本资源 (非 Windows)
