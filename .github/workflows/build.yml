@@ -15,22 +15,22 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Windows build
+          # Windows 构建
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             args: --target x86_64-pc-windows-msvc
             
-          # macOS Intel build
+          # macOS Intel 构建
           - platform: macos-latest
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin
             
-          # macOS Apple Silicon build
+          # macOS Apple Silicon 构建
           - platform: macos-latest
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin
             
-          # Linux build
+          # Linux 构建
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             args: --target x86_64-unknown-linux-gnu
@@ -38,28 +38,28 @@ jobs:
     runs-on: ${{ matrix.platform }}
     
     steps:
-      - name: Checkout Code
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Install Node.js
+      - name: 安装 Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: Verdent_account_manger/package-lock.json
 
-      - name: Install Rust (stable)
+      - name: 安装 Rust (稳定版)
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Configure Rust Cache
+      - name: 配置 Rust 缓存
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: Verdent_account_manger/src-tauri
 
-      # Linux specific dependencies
-      - name: Install Linux Dependencies
+      # Linux 特定依赖
+      - name: 安装 Linux 依赖
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
@@ -71,83 +71,130 @@ jobs:
             libssl-dev \
             libgtk-3-dev
 
-      # macOS specific dependencies
-      - name: Install macOS Dependencies
+      # macOS 特定依赖
+      - name: 安装 macOS 依赖
         if: matrix.platform == 'macos-latest'
         run: |
           rustup target add aarch64-apple-darwin
           rustup target add x86_64-apple-darwin
 
-      # All platforms: Package Python scripts
-      - name: Setup Python Environment
+      # 所有平台：打包 Python 脚本
+      - name: 设置 Python 环境
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install Python Dependencies
+      - name: 安装 Python 依赖
         run: |
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build Python Script (Windows)
+      - name: 打包 Python 脚本 (Windows)
         if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        env:
-          PYTHONIOENCODING: utf-8
         run: |
-          # Set UTF-8 encoding
-          $env:PYTHONIOENCODING = "utf-8"
-          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          # 动态生成 spec 文件
+          $specContent = @'
+          # -*- mode: python ; coding: utf-8 -*-
+          import sys
           
-          # Use build script to package
-          python build_exe.py
+          a = Analysis(
+              ['verdent_auto_register.py'],
+              pathex=[],
+              binaries=[],
+              datas=[],
+              hiddenimports=['DrissionPage', 'requests', 'urllib3', 'json', 're', 'uuid'],
+              hookspath=[],
+              hooksconfig={},
+              runtime_hooks=[],
+              excludes=['tkinter', 'matplotlib', 'numpy', 'pandas'],
+              noarchive=False,
+          )
           
-          # Verify file exists
-          if (!(Test-Path "Verdent_account_manger\resources\verdent_auto_register.exe")) {
+          pyz = PYZ(a.pure, a.zipped_data, cipher=None)
+          
+          exe = EXE(
+              pyz,
+              a.scripts,
+              a.binaries,
+              a.zipfiles,
+              a.datas,
+              [],
+              name='verdent_auto_register',
+              debug=False,
+              bootloader_ignore_signals=False,
+              strip=False,
+              upx=True,
+              upx_exclude=[],
+              runtime_tmpdir=None,
+              console=True,
+              disable_windowed_traceback=False,
+              argv_emulation=False,
+              target_arch=None,
+              codesign_identity=None,
+              entitlements_file=None,
+              icon='Verdent_account_manger/src-tauri/icons/icon.ico'
+          )
+          '@
+          
+          # 写入 spec 文件
+          Set-Content -Path "verdent_auto_register.spec" -Value $specContent -Encoding UTF8
+          Write-Output "Generated spec file"
+          
+          # 使用 spec 文件打包
+          pyinstaller --clean verdent_auto_register.spec
+          
+          if (!(Test-Path "dist\verdent_auto_register.exe")) {
             Write-Error "Failed to build Python executable"
             exit 1
           }
           
-          Write-Output "Python executable built and copied successfully"
+          # 获取文件大小
+          $exeSize = (Get-Item "dist\verdent_auto_register.exe").Length / 1MB
+          Write-Output "Python executable built successfully: $([math]::Round($exeSize, 2)) MB"
+          
+          # 创建 resources 目录并复制文件
+          New-Item -ItemType Directory -Path "Verdent_account_manger\resources" -Force
+          Copy-Item "dist\verdent_auto_register.exe" "Verdent_account_manger\resources\verdent_auto_register.exe" -Force
+          Write-Output "Copied to resources directory"
 
-      # macOS and Linux: Copy Python scripts and launcher
-      - name: Prepare Python Script Resources (non-Windows)
+      # macOS 和 Linux：复制 Python 脚本和启动器
+      - name: 准备 Python 脚本资源 (非 Windows)
         if: matrix.platform != 'windows-latest'
         run: |
-          # Create resources directory
+          # 创建资源目录
           mkdir -p Verdent_account_manger/resources
           
-          # Copy main script
+          # 复制主脚本
           cp verdent_auto_register.py Verdent_account_manger/resources/verdent_auto_register.py
           
-          # Copy launcher script (includes dependency check)
+          # 复制启动器脚本（包含依赖检查）
           cp verdent_auto_register_wrapper.py Verdent_account_manger/resources/verdent_auto_register_wrapper.py
           
-          # Add execution permissions
+          # 添加执行权限
           chmod +x Verdent_account_manger/resources/verdent_auto_register.py
           chmod +x Verdent_account_manger/resources/verdent_auto_register_wrapper.py
           
           echo "Python scripts prepared for ${{ matrix.platform }}"
 
-      - name: Install Frontend Dependencies
+      - name: 安装前端依赖
         working-directory: Verdent_account_manger
         run: npm ci
 
-      - name: Build Frontend
+      - name: 构建前端
         working-directory: Verdent_account_manger
         run: npm run build
 
-      - name: Build Tauri Application
+      - name: 构建 Tauri 应用
         working-directory: Verdent_account_manger
         run: npm run tauri build -- ${{ matrix.args }}
         env:
-          # macOS needs to disable code signing (or configure signing certificate)
+          # macOS 需要禁用代码签名（或配置签名证书）
           TAURI_SIGNING_PRIVATE_KEY: ""
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
 
-      # Upload build artifacts
-      - name: Upload Build Artifacts (Windows)
+      # 上传构建产物
+      - name: 上传构建产物 (Windows)
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
@@ -157,7 +204,7 @@ jobs:
             Verdent_account_manger/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
           if-no-files-found: error
 
-      - name: Upload Build Artifacts (macOS)
+      - name: 上传构建产物 (macOS)
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
@@ -167,7 +214,7 @@ jobs:
             Verdent_account_manger/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
           if-no-files-found: error
 
-      - name: Upload Build Artifacts (Linux)
+      - name: 上传构建产物 (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         uses: actions/upload-artifact@v4
         with:
@@ -177,7 +224,7 @@ jobs:
             Verdent_account_manger/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
           if-no-files-found: error
 
-  # Create Release (only when pushing tags)
+  # 创建 Release（仅在推送标签时）
   release:
     needs: build
     runs-on: ubuntu-latest
@@ -186,73 +233,73 @@ jobs:
       contents: write
     
     steps:
-      - name: Checkout Code
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Download All Build Artifacts
+      - name: 下载所有构建产物
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: Display Artifact Structure
+      - name: 显示产物结构
         run: ls -R artifacts
 
-      - name: Organize Release Files
+      - name: 整理发布文件
         run: |
-          # Create release directory
+          # 创建发布目录
           mkdir -p release_files
           
-          # Copy Windows installers
-          # MSI files
+          # 复制 Windows 安装包
+          # MSI 文件
           find artifacts -name "*.msi" -type f -exec cp {} release_files/ \;
-          # NSIS installer (exe with -setup suffix)
+          # NSIS 安装程序（带 -setup 后缀的 exe）
           find artifacts -name "*-setup.exe" -type f -exec cp {} release_files/ \;
           
-          # Copy macOS installers
+          # 复制 macOS 安装包
           find artifacts -name "*.dmg" -type f -exec cp {} release_files/ \;
           
-          # Copy Linux installers
+          # 复制 Linux 安装包
           find artifacts -name "*.deb" -type f -exec cp {} release_files/ \;
           find artifacts -name "*.AppImage" -type f -exec cp {} release_files/ \;
           
-          # Display final file list
+          # 显示最终文件列表
           echo "=== Release files ==="
           ls -la release_files/
           echo "====================="
           
-          # Generate version info file (for Release description)
+          # 生成版本信息文件（用于 Release 描述）
           cat > release_notes.md << 'EOF'
-          ## 📦 Installation Packages
+          ## 📦 安装包说明
           
           ### Windows
-          - **MSI Installer**: For Windows 10/11 x64 systems
-          - **NSIS Installer**: Version with friendly installation wizard
+          - **MSI 安装包**：适用于 Windows 10/11 x64 系统
+          - **NSIS 安装程序**：带有更友好安装向导的版本
           
           ### macOS
-          - **DMG Disk Image**: Supports Intel and Apple Silicon chips
-          - Minimum system requirement: macOS 10.13+
+          - **DMG 磁盘镜像**：支持 Intel 和 Apple Silicon 芯片
+          - 最低系统要求：macOS 10.13+
           
           ### Linux
-          - **DEB Package**: For Debian/Ubuntu systems
-          - **AppImage**: Universal Linux package, no installation required
+          - **DEB 包**：适用于 Debian/Ubuntu 系统
+          - **AppImage**：通用 Linux 包，无需安装
           
-          ## ✨ Main Features
-          - Batch account management
-          - Auto-registration feature (Windows)
-          - One-click editor login
-          - Real-time account status monitoring
+          ## ✨ 主要功能
+          - 批量账号管理
+          - 自动注册功能（Windows）
+          - 一键登录编辑器
+          - 实时账号状态监控
           
-          ## 📝 Usage Instructions
-          Please refer to the [Quick Start Guide](https://github.com/chaogei/Verdent/blob/main/QUICK_START.md)
+          ## 📝 使用说明
+          请参考 [快速入门指南](https://github.com/chaogei/Verdent/blob/main/QUICK_START.md)
           EOF
       
-      - name: Create Release
+      - name: 创建 Release
         uses: softprops/action-gh-release@v1
         with:
           draft: true
           generate_release_notes: true
           tag_name: "${{ github.ref_type == 'tag' && github.ref_name || format('manual-{0}', github.run_number) }}"
-          name: "${{ github.ref_type == 'tag' && format('Verdent Account Manager {0}', github.ref_name) || format('Verdent Account Manager Test Build #{0}', github.run_number) }}"
+          name: "${{ github.ref_type == 'tag' && format('Verdent账号管理器 {0}', github.ref_name) || format('Verdent账号管理器 测试版本 #{0}', github.run_number) }}"
           body_path: release_notes.md
           files: release_files/*
           fail_on_unmatched_files: false

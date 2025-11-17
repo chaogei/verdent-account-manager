@@ -245,11 +245,13 @@ class VerdentAutoRegister:
     def _create_browser(self) -> ChromiumPage:
         import tempfile
         import os
+        import random
         
         options = ChromiumOptions()
-        # 启用自动端口分配,支持多线程并发
-        # 每个线程将使用独立的浏览器端口,避免端口冲突
-        options.auto_port()
+        # 设置浏览器启动参数
+        # 使用随机端口避免冲突
+        port = random.randint(9200, 9999)
+        options.set_local_port(port)
         
         # 创建临时用户数据目录，避免与已有Chrome实例冲突
         temp_dir = tempfile.mkdtemp(prefix='verdent_chrome_')
@@ -264,21 +266,37 @@ class VerdentAutoRegister:
         options.set_argument('--disable-gpu')
         options.set_argument('--no-sandbox')  # Linux兼容性
         options.set_argument('--disable-dev-shm-usage')  # 解决共享内存问题
-        options.set_argument('--disable-blink-features=AutomationControlled')  # 隐藏自动化特征
-        options.set_argument('--disable-web-security')  # 禁用同源策略限制
-        options.set_argument('--disable-features=IsolateOrigins,site-per-process')  # 提高稳定性
         
         # Windows系统特殊处理
         if os.name == 'nt':
             options.set_argument('--disable-gpu-sandbox')
         
         try:
+            # 尝试创建浏览器页面
+            print(f"[*] 创建浏览器，临时目录: {temp_dir}", flush=True)
             page = ChromiumPage(addr_or_opts=options)
             # 保存临时目录路径，以便后续清理
             page._temp_user_data_dir = temp_dir
+            print("[✓] 浏览器创建成功", flush=True)
             return page
+        except ValueError as ve:
+            # 处理地址解析错误
+            if "not enough values to unpack" in str(ve):
+                print("[!] 地址解析错误，尝试不指定选项创建浏览器...", flush=True)
+                try:
+                    # 尝试使用默认配置
+                    page = ChromiumPage()
+                    page._temp_user_data_dir = temp_dir
+                    print("[✓] 使用默认配置创建浏览器成功", flush=True)
+                    return page
+                except Exception as e2:
+                    print(f"[X] 默认配置也失败: {e2}", flush=True)
+                    raise e2
+            else:
+                raise ve
         except Exception as e:
             # 如果创建失败，清理临时目录
+            print(f"[X] 创建浏览器失败: {e}", flush=True)
             import shutil
             if os.path.exists(temp_dir):
                 try:

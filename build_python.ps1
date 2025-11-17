@@ -82,8 +82,17 @@ Write-Success "清理完成"
 
 # 使用 PyInstaller 打包
 Write-Info "开始打包 Python 脚本..."
-Write-Info "使用配置文件: verdent_auto_register.spec"
-pyinstaller --clean verdent_auto_register.spec
+Write-Info "使用 PyInstaller 命令行参数打包..."
+
+# 检查图标文件
+$iconPath = "Verdent_account_manger\src-tauri\icons\icon.ico"
+if (Test-Path $iconPath) {
+    Write-Info "使用图标: $iconPath"
+    pyinstaller --onefile --noconsole --icon="$iconPath" --name=verdent_auto_register --clean verdent_auto_register.py
+} else {
+    Write-Info "未找到图标文件，不使用图标"
+    pyinstaller --onefile --noconsole --name=verdent_auto_register --clean verdent_auto_register.py
+}
 
 if (-not $?) {
     Write-Host ""
