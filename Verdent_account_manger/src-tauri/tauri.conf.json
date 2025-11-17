@@ -39,8 +39,8 @@
     ],
     "resources": [
       "../resources/verdent_auto_register.exe",
-      "../../verdent_auto_register.py",
-      "../../verdent_auto_register_wrapper.py"
+      "../resources/verdent_auto_register.py",
+      "../resources/verdent_auto_register_wrapper.py"
     ],
     "windows": {
       "wix": {

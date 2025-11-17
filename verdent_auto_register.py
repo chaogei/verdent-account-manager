@@ -8,9 +8,13 @@ Verdent AI 自动注册脚本
 import sys
 import io
 import time
-import json
+import tempfile
+import os
+import traceback
 import random
+import json
 import string
+import shutil
 import requests
 import uuid
 from datetime import datetime, timedelta
@@ -243,9 +247,7 @@ class VerdentAutoRegister:
         return ''.join(password_chars)
     
     def _create_browser(self) -> ChromiumPage:
-        import tempfile
-        import os
-        import random
+
         
         options = ChromiumOptions()
         # 设置浏览器启动参数
@@ -297,7 +299,7 @@ class VerdentAutoRegister:
         except Exception as e:
             # 如果创建失败，清理临时目录
             print(f"[X] 创建浏览器失败: {e}", flush=True)
-            import shutil
+            
             if os.path.exists(temp_dir):
                 try:
                     shutil.rmtree(temp_dir, ignore_errors=True)
@@ -728,7 +730,7 @@ class VerdentAutoRegister:
 
                 except Exception as e:
                     print(f"[ERROR] 提取 token 时出错: {e}", flush=True)
-                    import traceback
+                    
                     traceback.print_exc()
                     token = None
 
@@ -914,12 +916,10 @@ class VerdentAutoRegister:
             else:
                 # 其他运行时错误
                 print(f"[X] 注册过程出错: {e}", flush=True)
-                import traceback
                 traceback.print_exc()
                 return None
         except Exception as e:
             print(f"[X] 注册过程出错: {e}", flush=True)
-            import traceback
             traceback.print_exc()
             return None
 
@@ -935,8 +935,6 @@ class VerdentAutoRegister:
                     
                     # 清理临时用户数据目录
                     if hasattr(page, '_temp_user_data_dir'):
-                        import shutil
-                        import os
                         temp_dir = page._temp_user_data_dir
                         if os.path.exists(temp_dir):
                             try:

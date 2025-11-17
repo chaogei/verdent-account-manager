@@ -73,6 +73,12 @@ if (-not (Test-Path "Verdent_account_manger\resources\verdent_auto_register.exe"
 }
 Write-Success "Python exe 文件已就绪"
 
+Write-Host "开始构建 Tauri 应用..." -ForegroundColor Green
+
+# 准备资源文件
+Write-Host "`n准备资源文件..." -ForegroundColor Cyan
+& "$PSScriptRoot\prepare_resources.ps1"
+
 # 进入 Tauri 项目目录
 Set-Location "Verdent_account_manger"
 

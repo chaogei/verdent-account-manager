@@ -116,6 +116,12 @@ if (-not (Test-Path "Verdent_account_manger\resources")) {
 Copy-Item "dist\verdent_auto_register.exe" "Verdent_account_manger\resources\verdent_auto_register.exe" -Force
 Write-Success "已复制到: Verdent_account_manger\resources\verdent_auto_register.exe"
 
+# 同时复制 Python 脚本（用于 macOS/Linux 构建）
+Write-Info "复制 Python 脚本文件..."
+Copy-Item "verdent_auto_register.py" "Verdent_account_manger\resources\verdent_auto_register.py" -Force
+Copy-Item "verdent_auto_register_wrapper.py" "Verdent_account_manger\resources\verdent_auto_register_wrapper.py" -Force
+Write-Success "已复制 Python 脚本到资源目录"
+
 # 步骤 3: 打包 Tauri 应用
 Write-Header "步骤 2/2: 打包 Tauri 应用"
 
