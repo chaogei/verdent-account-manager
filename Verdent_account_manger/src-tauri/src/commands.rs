@@ -52,6 +52,7 @@ fn find_register_executable(app_handle: &tauri::AppHandle, current_dir: &PathBuf
             let wrapper_candidates = vec![
                 resource_path.join("verdent_auto_register_wrapper.py"),
                 resource_path.join("resources").join("verdent_auto_register_wrapper.py"),
+                resource_path.join("_up_").join("verdent_auto_register_wrapper.py"),
                 resource_path.join("_up_").join("resources").join("verdent_auto_register_wrapper.py"),
             ];
             
@@ -67,6 +68,7 @@ fn find_register_executable(app_handle: &tauri::AppHandle, current_dir: &PathBuf
             let script_candidates = vec![
                 resource_path.join("verdent_auto_register.py"),
                 resource_path.join("resources").join("verdent_auto_register.py"),
+                resource_path.join("_up_").join("verdent_auto_register.py"),
                 resource_path.join("_up_").join("resources").join("verdent_auto_register.py"),
             ];
             
@@ -88,6 +90,17 @@ fn find_register_executable(app_handle: &tauri::AppHandle, current_dir: &PathBuf
                 println!("    - {}", entry.path().display());
             }
         }
+        
+        // 同时检查 _up_ 目录的内容
+        let up_dir = resource_path.join("_up_");
+        if up_dir.exists() {
+            println!("[*] _up_ 目录内容:");
+            if let Ok(entries) = std::fs::read_dir(&up_dir) {
+                for entry in entries.flatten() {
+                    println!("    - {}", entry.path().display());
+                }
+            }
+        }
     }
 
     // 2. 尝试查找 Python 脚本 (开发模式)
@@ -100,6 +113,13 @@ fn find_register_executable(app_handle: &tauri::AppHandle, current_dir: &PathBuf
         // 父目录 (src-tauri 的父目录)
         current_dir.parent().map(|p: &std::path::Path| p.join("verdent_auto_register_wrapper.py")),
         // 祖父目录
+        current_dir.parent().and_then(|p: &std::path::Path| p.parent()).map(|p: &std::path::Path| p.join("verdent_auto_register_wrapper.py")),
+        // macOS: 在 .app/Contents/MacOS 目录（当前目录）已被第一个选项覆盖
+        // macOS: 在 .app/Contents 目录
+        #[cfg(target_os = "macos")]
+        current_dir.parent().map(|p: &std::path::Path| p.join("verdent_auto_register_wrapper.py")),
+        // macOS: 在 .app 根目录
+        #[cfg(target_os = "macos")]
         current_dir.parent().and_then(|p: &std::path::Path| p.parent()).map(|p: &std::path::Path| p.join("verdent_auto_register_wrapper.py")),
     ];
 
@@ -118,6 +138,12 @@ fn find_register_executable(app_handle: &tauri::AppHandle, current_dir: &PathBuf
         // 父目录 (src-tauri 的父目录)
         current_dir.parent().map(|p: &std::path::Path| p.join("verdent_auto_register.py")),
         // 祖父目录
+        current_dir.parent().and_then(|p: &std::path::Path| p.parent()).map(|p: &std::path::Path| p.join("verdent_auto_register.py")),
+        // macOS: 在 .app/Contents 目录
+        #[cfg(target_os = "macos")]
+        current_dir.parent().map(|p: &std::path::Path| p.join("verdent_auto_register.py")),
+        // macOS: 在 .app 根目录
+        #[cfg(target_os = "macos")]
         current_dir.parent().and_then(|p: &std::path::Path| p.parent()).map(|p: &std::path::Path| p.join("verdent_auto_register.py")),
     ];
 

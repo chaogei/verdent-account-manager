@@ -2322,6 +2322,12 @@ async function handleImportAccounts() {
   border-top: 1px solid #e5e5e7;
 }
 
+.modal-footer button {
+  min-width: 120px;
+  white-space: nowrap;
+  padding: 10px 24px;
+}
+
 .form-group {
   margin-bottom: 16px;
 }

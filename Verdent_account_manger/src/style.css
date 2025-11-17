@@ -297,12 +297,13 @@ body {
 
 .modal-footer button {
   flex: 0;
-  min-width: 100px;
-  padding: 10px 20px;
+  min-width: 120px;
+  padding: 10px 24px;
   font-size: 14px;
   border-radius: 6px;
   font-weight: 500;
   letter-spacing: 0.3px;
+  white-space: nowrap;  /* 防止文字换行 */
 }
 
 .modal-footer button svg {

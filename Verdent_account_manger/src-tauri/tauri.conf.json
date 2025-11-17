@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Verdent Account Manager",
-        "width": 900,
-        "height": 700,
+        "width": 800,
+        "height": 800,
         "minWidth": 800,
         "minHeight": 600,
         "resizable": true,

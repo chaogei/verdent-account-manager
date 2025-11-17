@@ -243,18 +243,49 @@ class VerdentAutoRegister:
         return ''.join(password_chars)
     
     def _create_browser(self) -> ChromiumPage:
+        import tempfile
+        import os
+        
         options = ChromiumOptions()
         # 启用自动端口分配,支持多线程并发
         # 每个线程将使用独立的浏览器端口,避免端口冲突
         options.auto_port()
+        
+        # 创建临时用户数据目录，避免与已有Chrome实例冲突
+        temp_dir = tempfile.mkdtemp(prefix='verdent_chrome_')
+        options.set_user_data_path(temp_dir)
+        
         if self.headless:
             options.headless(True)
+            options.set_argument('--headless=new')  # 使用新的headless模式
+        
         #无痕模式
         options.set_argument('--incognito')
         options.set_argument('--disable-gpu')
-
-        page = ChromiumPage(addr_or_opts=options)
-        return page
+        options.set_argument('--no-sandbox')  # Linux兼容性
+        options.set_argument('--disable-dev-shm-usage')  # 解决共享内存问题
+        options.set_argument('--disable-blink-features=AutomationControlled')  # 隐藏自动化特征
+        options.set_argument('--disable-web-security')  # 禁用同源策略限制
+        options.set_argument('--disable-features=IsolateOrigins,site-per-process')  # 提高稳定性
+        
+        # Windows系统特殊处理
+        if os.name == 'nt':
+            options.set_argument('--disable-gpu-sandbox')
+        
+        try:
+            page = ChromiumPage(addr_or_opts=options)
+            # 保存临时目录路径，以便后续清理
+            page._temp_user_data_dir = temp_dir
+            return page
+        except Exception as e:
+            # 如果创建失败，清理临时目录
+            import shutil
+            if os.path.exists(temp_dir):
+                try:
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                except:
+                    pass
+            raise e
     
     def _check_browser_alive(self, page: ChromiumPage) -> bool:
         """
@@ -883,6 +914,19 @@ class VerdentAutoRegister:
                         page.quit()
                     else:
                         print("[*] 浏览器已关闭，跳过清理步骤", flush=True)
+                    
+                    # 清理临时用户数据目录
+                    if hasattr(page, '_temp_user_data_dir'):
+                        import shutil
+                        import os
+                        temp_dir = page._temp_user_data_dir
+                        if os.path.exists(temp_dir):
+                            try:
+                                shutil.rmtree(temp_dir, ignore_errors=True)
+                                print(f"[*] 已清理临时目录: {temp_dir}", flush=True)
+                            except:
+                                pass  # 忽略清理错误
+                                
                 except Exception as e:
                     # 忽略关闭浏览器时的错误
                     print(f"[*] 浏览器清理时出现异常（已忽略）: {e}", flush=True)
