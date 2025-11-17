@@ -39,6 +39,7 @@ const emit = defineEmits<{
 
 const showPassword = ref(false)
 const isHovered = ref(false)
+const bindCardLoading = ref(false)
 
 const registerDate = computed(() => {
   const date = new Date(props.account.register_time)
@@ -163,6 +164,51 @@ async function copyToClipboard(text: string, type: string) {
 
 function handleRefresh() {
   emit('refresh', props.account.id)
+}
+
+async function handleBindCard() {
+  if (!props.account.token) {
+    emit('showToast', '请先获取 Token', 'warning')
+    return
+  }
+
+  bindCardLoading.value = true
+  
+  try {
+    // 调用后端 API 获取绑卡链接
+    const result = await invoke<{ success: boolean; checkout_url?: string; error?: string }>('get_trial_checkout_url', {
+      token: props.account.token
+    })
+
+    if (result.success && result.checkout_url) {
+      emit('showToast', '正在打开绑卡页面...', 'info')
+      // 用无痕模式打开绑卡链接
+      await invoke('open_incognito_browser', { url: result.checkout_url })
+      emit('showToast', '绑卡页面已打开', 'success')
+    } else {
+      const errorMsg = result.error || '获取绑卡链接失败'
+      emit('showToast', `${errorMsg}\n建议：请尝试切换到香港、新加坡等地区的代理节点`, 'error')
+    }
+  } catch (error) {
+    console.error('绑卡失败:', error)
+    const errorStr = String(error)
+    // 对所有绑卡错误都提供节点切换建议
+    // 特别是 API 错误、网络错误、服务器错误等
+    if (errorStr.includes('获取用户信息失败') || 
+        errorStr.includes('创建订阅失败') || 
+        errorStr.includes('timeout') ||
+        errorStr.includes('API错误') ||
+        errorStr.includes('internal server error') ||
+        errorStr.includes('网络') ||
+        errorStr.includes('代理')) {
+      emit('showToast', `绑卡失败: ${errorStr}\n💡 建议：请检查网络连接，或尝试切换到香港、新加坡、日本等地区的代理节点`, 'error')
+    } else {
+      // 即使是其他错误，也提供节点建议，因为大部分绑卡失败都与网络有关
+      emit('showToast', `绑卡失败: ${errorStr}\n💡 提示：如持续失败，请尝试切换到香港、新加坡等地区节点`, 'error')
+    }
+  } finally {
+    bindCardLoading.value = false
+  }
 }
 
 function handleEdit() {
@@ -342,6 +388,10 @@ async function handleLoginCursor() {
       <div class="card-actions">
         <button class="action-btn refresh-btn" @click="handleRefresh" title="刷新">
           <img src="/刷新.svg" alt="刷新" class="action-icon refresh-icon" />
+        </button>
+        <button class="action-btn bind-card-btn" @click="handleBindCard" title="绑卡" :disabled="bindCardLoading">
+          <img v-if="!bindCardLoading" src="/绑卡.svg" alt="绑卡" class="action-icon" />
+          <span v-else class="loading-text">...</span>
         </button>
         <button class="action-btn edit-btn" @click="handleEdit" title="编辑">
           <img src="/编辑.svg" alt="编辑" class="action-icon" />
@@ -574,6 +624,20 @@ async function handleLoginCursor() {
 
 .action-btn.delete:hover {
   background: #ffebeb;
+}
+
+.action-btn.bind-card-btn:hover:not(:disabled) {
+  background: #e6f4ff;
+}
+
+.action-btn.bind-card-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.loading-text {
+  font-size: 12px;
+  color: #666;
 }
 
 .card-body {

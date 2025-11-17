@@ -109,6 +109,7 @@ watch(() => props.show, (newVal) => {
   font-size: 14px;
   font-weight: 500;
   line-height: 1.5;
+  white-space: pre-line; /* 支持换行符 */
 }
 
 /* 动画 */

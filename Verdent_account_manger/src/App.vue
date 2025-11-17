@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import AccountManager from './components/AccountManager.vue'
+import Toast from './components/Toast.vue'
 
 interface LoginRequest {
   token: string
@@ -47,15 +48,23 @@ const managerVersion = ref('1.3.0')  // 管理器版本（默认值）
 const accountsStoragePath = ref('')  // 账号存储路径
 const openVscode = ref(true)
 const loading = ref(false)
-const message = ref<{ type: 'success' | 'error' | 'info'; text: string } | null>(null)
 const storageInfo = ref<StorageInfo | null>(null)
 const showInfo = ref(false)
 const generateNewDeviceId = ref(true)
 const vscodeIds = ref<VSCodeIdsInfo | null>(null)
+const showProxySettings = ref(false)
+const proxyUrl = ref('')
+const proxyEnabled = ref(false)
+
+// Toast 相关状态
+const showToast = ref(false)
+const toastMessage = ref('')
+const toastType = ref<'success' | 'error' | 'info' | 'warning'>('success')
 
 onMounted(async () => {
   await loadStorageInfo()
   await loadVSCodeIds()
+  await loadProxySettings()
   
   // 获取管理器版本号
   try {
@@ -326,23 +335,72 @@ async function handleResetAll() {
 }
 
 function showMessage(type: 'success' | 'error' | 'info', text: string) {
-  message.value = { type, text }
-  setTimeout(() => {
-    message.value = null
-  }, 5000)
+  // 只显示Toast消息
+  toastMessage.value = text
+  toastType.value = type === 'error' ? 'error' : type === 'info' ? 'info' : 'success'
+  showToast.value = true
+}
+
+function handleToastClose() {
+  showToast.value = false
+}
+
+async function loadProxySettings() {
+  try {
+    const settings = await invoke<{ enabled: boolean; url: string }>('get_proxy_settings')
+    proxyEnabled.value = settings.enabled
+    proxyUrl.value = settings.url
+  } catch (error) {
+    console.error('加载代理设置失败:', error)
+  }
+}
+
+async function saveProxySettings() {
+  try {
+    await invoke('save_proxy_settings', {
+      enabled: proxyEnabled.value,
+      url: proxyUrl.value
+    })
+    showMessage('success', '代理设置已保存')
+    showProxySettings.value = false
+  } catch (error) {
+    console.error('保存代理设置失败:', error)
+    showMessage('error', '保存代理设置失败: ' + error)
+  }
+}
+
+function handleProxyToggle() {
+  // 当禁用代理时，可以清空代理地址
+  if (!proxyEnabled.value) {
+    // 可选：清空代理地址
+    // proxyUrl.value = ''
+  }
 }
 </script>
 
 <template>
   <div class="container">
+    <!-- Toast 通知 -->
+    <Toast
+      :message="toastMessage"
+      :type="toastType"
+      :show="showToast"
+      :duration="3000"
+      @close="handleToastClose"
+    />
     <div class="header">
       <h1>
         <img src="/verdent-long.svg" alt="Verdent" class="verdent-logo" />
         账号管理器
       </h1>
-      <button class="info-btn" @click="showInfo = !showInfo" title="查看设备信息">
-        <img src="/信息.svg" alt="信息" class="info-icon" />
-      </button>
+      <div class="header-actions">
+        <button class="header-btn settings-btn" @click="showProxySettings = !showProxySettings" title="代理设置">
+          <img src="/设置.svg" alt="设置" class="header-icon" />
+        </button>
+        <button class="header-btn info-btn" @click="showInfo = !showInfo" title="查看设备信息">
+          <img src="/信息.svg" alt="信息" class="header-icon info-icon" />
+        </button>
+      </div>
     </div>
 
     <div v-if="showInfo" class="modal-overlay" @click="showInfo = false">
@@ -422,6 +480,43 @@ function showMessage(type: 'success' | 'error' | 'info', text: string) {
       </div>
     </div>
 
+    <!-- 代理设置对话框 -->
+    <div v-if="showProxySettings" class="modal-overlay" @click="showProxySettings = false">
+      <div class="modal-content proxy-modal" @click.stop>
+        <div class="modal-header">
+          <h2>代理设置</h2>
+          <button class="modal-close" @click="showProxySettings = false">
+            <img src="/icon-close.svg" alt="关闭" class="close-icon" />
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="proxy-settings">
+            <div class="proxy-item">
+              <label class="proxy-label">
+                <input type="checkbox" v-model="proxyEnabled" @change="handleProxyToggle" />
+                <span>启用代理</span>
+              </label>
+            </div>
+            <div class="proxy-item" v-if="proxyEnabled">
+              <label class="proxy-label">代理地址</label>
+              <input 
+                v-model="proxyUrl" 
+                type="text" 
+                class="proxy-input" 
+                placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
+                :disabled="!proxyEnabled"
+              />
+              <div class="proxy-hint">支持 HTTP、HTTPS 和 SOCKS5 代理</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" @click="showProxySettings = false">取消</button>
+          <button class="btn-primary" @click="saveProxySettings">保存</button>
+        </div>
+      </div>
+    </div>
+
     <div class="content">
       <div class="tabs">
         <button
@@ -442,10 +537,6 @@ function showMessage(type: 'success' | 'error' | 'info', text: string) {
         >
           存储管理
         </button>
-      </div>
-
-      <div v-if="message" :class="['alert', `alert-${message.type}`]">
-        {{ message.text }}
       </div>
 
       <div v-if="activeTab === 'accounts'">

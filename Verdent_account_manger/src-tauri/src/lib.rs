@@ -1,13 +1,14 @@
-mod pkce;
-mod storage;
+mod account_manager;
 mod api;
 mod commands;
-mod vscode_storage;
-mod account_manager;
-mod jwt_utils;
-mod settings_manager;
 mod errors;
+mod jwt_utils;
 mod models;
+mod pkce;
+mod proxy_manager;
+mod settings_manager;
+mod storage;
+mod vscode_storage;
 
 use commands::*;
 
@@ -92,6 +93,10 @@ pub fn run() {
             update_selected_accounts,
             update_filter_type,
             update_register_config,
+            get_proxy_settings,
+            save_proxy_settings,
+            get_trial_checkout_url,
+            open_incognito_browser,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

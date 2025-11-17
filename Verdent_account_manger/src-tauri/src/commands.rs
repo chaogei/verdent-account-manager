@@ -2169,3 +2169,193 @@ pub fn open_storage_folder() -> Result<String, String> {
     
     Ok(path_str)
 }
+
+/// 获取代理设置
+#[tauri::command]
+pub async fn get_proxy_settings() -> Result<crate::proxy_manager::ProxySettings, String> {
+    crate::proxy_manager::ProxyManager::load()
+}
+
+/// 保存代理设置
+#[tauri::command]
+pub async fn save_proxy_settings(enabled: bool, url: String) -> Result<(), String> {
+    let settings = crate::proxy_manager::ProxySettings { enabled, url };
+    crate::proxy_manager::ProxyManager::save(&settings)
+}
+
+/// 获取试用绑卡链接
+#[tauri::command]
+pub async fn get_trial_checkout_url(token: String) -> Result<serde_json::Value, String> {
+    use reqwest::header::{HeaderMap, HeaderValue, COOKIE};
+    use serde_json::json;
+    
+    // 加载代理设置
+    let proxy_settings = crate::proxy_manager::ProxyManager::load()
+        .unwrap_or_default();
+    
+    // 创建HTTP客户端
+    let mut client_builder = reqwest::Client::builder();
+    
+    if proxy_settings.enabled && !proxy_settings.url.is_empty() {
+        println!("[DEBUG] 使用代理: {}", proxy_settings.url);
+        let proxy = reqwest::Proxy::all(&proxy_settings.url)
+            .map_err(|e| format!("代理配置错误: {}", e))?;
+        client_builder = client_builder.proxy(proxy);
+    }
+    
+    let client = client_builder
+        .danger_accept_invalid_certs(true)
+        .build()
+        .map_err(|e| format!("创建HTTP客户端失败: {}", e))?;
+    
+    // 构建请求头
+    let mut headers = HeaderMap::new();
+    let cookie_value = format!("token={}", token);
+    headers.insert(COOKIE, HeaderValue::from_str(&cookie_value)
+        .map_err(|e| format!("设置Cookie失败: {}", e))?);
+    
+    // 获取用户信息
+    let user_info_url = "https://agent.verdent.ai/user/center/info";
+    let user_info_response = client
+        .get(user_info_url)
+        .headers(headers.clone())
+        .send()
+        .await
+        .map_err(|e| format!("获取用户信息失败: {}", e))?;
+    
+    if !user_info_response.status().is_success() {
+        return Err(format!("获取用户信息失败: HTTP {}", user_info_response.status()));
+    }
+    
+    let user_info: serde_json::Value = user_info_response.json()
+        .await
+        .map_err(|e| format!("解析用户信息失败: {}", e))?;
+    
+    // 从用户信息中获取 trialPlanId
+    let trial_plan_id = user_info["data"]["trialPlanId"]
+        .as_str()
+        .ok_or_else(|| "无法获取试用计划ID".to_string())?;
+    
+    // 生成设备ID (UUID v4)
+    let device_id = uuid::Uuid::new_v4().to_string();
+    
+    // 创建订阅请求
+    let create_subscription_url = "https://api.verdent.ai/verdent/subscription/create";
+    let subscription_body = json!({
+        "plan_id": trial_plan_id,
+        "device_id": device_id,
+        "source": "verdent"
+    });
+    
+    let subscription_response = client
+        .post(create_subscription_url)
+        .headers(headers)
+        .json(&subscription_body)
+        .send()
+        .await
+        .map_err(|e| format!("创建订阅失败: {}", e))?;
+    
+    if !subscription_response.status().is_success() {
+        return Err(format!("创建订阅失败: HTTP {}", subscription_response.status()));
+    }
+    
+    let subscription_result: serde_json::Value = subscription_response.json()
+        .await
+        .map_err(|e| format!("解析订阅结果失败: {}", e))?;
+    
+    // 检查是否有错误码
+    if let Some(err_code) = subscription_result["errCode"].as_i64() {
+        if err_code != 0 {
+            let err_msg = subscription_result["errMsg"]
+                .as_str()
+                .unwrap_or("未知错误");
+            return Err(format!("API错误: {}", err_msg));
+        }
+    }
+    
+    // 获取 checkout_url
+    let checkout_url = subscription_result["data"]["checkout_url"]
+        .as_str()
+        .ok_or_else(|| "无法获取绑卡链接".to_string())?;
+    
+    Ok(json!({
+        "success": true,
+        "checkout_url": checkout_url
+    }))
+}
+
+/// 打开无痕浏览器
+#[tauri::command]
+pub async fn open_incognito_browser(url: String) -> Result<(), String> {
+    use std::process::Command;
+    
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: 使用Chrome的无痕模式
+        let browsers = vec![
+            ("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "--incognito"),
+            ("C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe", "--incognito"),
+            ("C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe", "--inprivate"),
+            ("C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe", "--inprivate"),
+        ];
+        
+        for (browser_path, flag) in browsers {
+            if std::path::Path::new(browser_path).exists() {
+                Command::new(browser_path)
+                    .arg(flag)
+                    .arg(&url)
+                    .spawn()
+                    .map_err(|e| format!("打开浏览器失败: {}", e))?;
+                return Ok(());
+            }
+        }
+        
+        // 如果找不到特定浏览器，使用系统默认浏览器
+        Command::new("cmd")
+            .args(&["/C", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("打开默认浏览器失败: {}", e))?;
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        // macOS: 使用Safari的私密浏览模式
+        Command::new("osascript")
+            .arg("-e")
+            .arg(&format!(
+                "tell application \"Safari\" to open location \"{}\" in a new private window",
+                url
+            ))
+            .spawn()
+            .map_err(|e| format!("打开Safari私密浏览失败: {}", e))?;
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        // Linux: 尝试不同的浏览器
+        let browsers = vec![
+            ("google-chrome", "--incognito"),
+            ("chromium", "--incognito"),
+            ("firefox", "--private-window"),
+        ];
+        
+        for (browser, flag) in browsers {
+            if Command::new("which").arg(browser).output().is_ok() {
+                Command::new(browser)
+                    .arg(flag)
+                    .arg(&url)
+                    .spawn()
+                    .map_err(|e| format!("打开浏览器失败: {}", e))?;
+                return Ok(());
+            }
+        }
+        
+        // 使用xdg-open作为后备选项
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("打开默认浏览器失败: {}", e))?;
+    }
+    
+    Ok(())
+}
