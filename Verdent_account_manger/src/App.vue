@@ -118,8 +118,8 @@ onMounted(async () => {
     managerVersion.value = version
   } catch (error) {
     console.error('获取版本号失败:', error)
-    // 保持默认值 1.4.0
-    managerVersion.value = '1.4.0'
+    // 保持默认值 1.5.2
+    managerVersion.value = '1.5.2'
   }
   
   // 获取账号存储路径
@@ -928,9 +928,20 @@ async function loadAvailableEditors() {
 
         <!-- 编辑器选择 -->
         <div class="editor-selection-section">
-          <h4>选择要清理的编辑器</h4>
+          <div class="section-header">
+            <img src="/设置.svg" alt="设置" class="section-header-icon" width="18" height="18" />
+            <h4>选择要清理的编辑器</h4>
+          </div>
           <div class="editor-checkboxes">
-            <div v-for="editor in availableEditors" :key="editor.editor_type" class="editor-checkbox-item">
+            <div 
+              v-for="editor in availableEditors" 
+              :key="editor.editor_type" 
+              class="editor-checkbox-item"
+              :class="{ 
+                'is-selected': selectedEditors.includes(editor.editor_type),
+                'is-disabled': !editor.is_installed 
+              }"
+            >
               <input
                 :id="`editor-${editor.editor_type}`"
                 v-model="selectedEditors"
@@ -939,27 +950,41 @@ async function loadAvailableEditors() {
                 :disabled="!editor.is_installed"
               />
               <label :for="`editor-${editor.editor_type}`" class="editor-label">
-                {{ editor.display_name }}
-                <span v-if="!editor.is_installed" class="not-installed">(未安装)</span>
-                <span v-else class="installed">✓</span>
+                <img :src="['Trae', 'Qoder', 'Kiro'].includes(editor.editor_type) ? `/${editor.editor_type}.${editor.editor_type === 'Kiro' ? 'svg' : 'png'}` : `/${editor.editor_type.toLowerCase()}.svg`" :alt="editor.display_name" class="editor-icon" width="20" height="20" onerror="this.style.display='none'" />
+                <span class="editor-name">{{ editor.display_name }}</span>
+                
+                <span v-if="!editor.is_installed" class="status-badge not-installed">未安装</span>
+                <!-- 选中状态指示器 (仅已安装显示) -->
+                <span v-else class="checkbox-indicator" :class="{ 'is-checked': selectedEditors.includes(editor.editor_type) }">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </span>
               </label>
             </div>
           </div>
         </div>
 
-        <div class="form-group checkbox-group">
+        <!-- 设备ID选项 -->
+        <div class="device-id-option">
           <input id="generateNewDeviceId" v-model="generateNewDeviceId" type="checkbox" />
-          <label for="generateNewDeviceId">清理时生成新的设备ID</label>
+          <label for="generateNewDeviceId">
+            <img src="/重置.svg" alt="重置" width="16" height="16" />
+            <span>清理时生成新的设备ID</span>
+          </label>
         </div>
 
-        <div class="button-group">
-          <button class="btn-secondary" :disabled="loading" @click="handleResetDevice">
-            <span v-if="loading" class="loading"></span>
-            重置设备身份
+        <!-- 操作按钮 -->
+        <div class="reset-button-group">
+          <button class="reset-btn secondary" :disabled="loading" @click="handleResetDevice">
+            <img src="/重置.svg" alt="重置" class="btn-icon" width="18" height="18" />
+            <span v-if="loading" class="loading-spinner"></span>
+            <span class="btn-text">重置设备身份</span>
           </button>
-          <button class="btn-danger" :disabled="loading" @click="handleResetAll">
-            <span v-if="loading" class="loading"></span>
-            完全清理
+          <button class="reset-btn danger" :disabled="loading" @click="handleResetAll">
+            <img src="/删除 .svg" alt="清理" class="btn-icon" width="18" height="18" />
+            <span v-if="loading" class="loading-spinner"></span>
+            <span class="btn-text">完全清理</span>
           </button>
         </div>
 
@@ -1153,59 +1178,289 @@ async function loadAvailableEditors() {
 <style scoped>
 .editor-selection-section {
   margin: 20px 0;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 20px;
+  background: #fafafa;
+  border-radius: 12px;
+  border: 1px solid #ebebeb;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ebebeb;
+}
+
+.section-header-icon {
+  opacity: 0.6;
+  filter: brightness(0); /* 变成黑色图标 */
 }
 
 .editor-selection-section h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: #e0e0e0;
-  font-weight: 500;
+  margin: 0;
+  font-size: 15px;
+  color: #333;
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
 .editor-checkboxes {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
 }
 
 .editor-checkbox-item {
+  position: relative;
   display: flex;
   align-items: center;
+  padding: 12px 14px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #e5e5e5;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.editor-checkbox-item:hover:not(.is-disabled) {
+  border-color: #007aff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 122, 255, 0.1);
+}
+
+.editor-checkbox-item.is-selected {
+  background: #f0f7ff;
+  border-color: #007aff;
+  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.15);
+}
+
+.editor-checkbox-item.is-disabled {
+  background: #f5f5f7;
+  opacity: 0.7;
+  cursor: not-allowed;
+  border-style: dashed;
 }
 
 .editor-checkbox-item input[type="checkbox"] {
-  margin-right: 8px;
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.editor-checkbox-item input[type="checkbox"]:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
 }
 
 .editor-label {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   font-size: 14px;
   cursor: pointer;
   user-select: none;
 }
 
-.editor-label .installed {
-  color: #4caf50;
-  font-weight: bold;
+.editor-icon {
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
 }
 
-.editor-label .not-installed {
+.editor-name {
+  flex: 1;
+  font-weight: 600;
+  color: #333;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.is-disabled .editor-name {
   color: #999;
-  font-size: 12px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.not-installed {
+  color: #999;
+  background: #f5f5f7;
+  padding: 4px 8px;
+  border: 1px solid #ebebeb;
+}
+
+/* 复选框指示器样式 */
+.checkbox-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: white;
+  flex-shrink: 0;
+}
+
+.checkbox-indicator svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  color: white;
+}
+
+/* 选中状态 */
+.checkbox-indicator.is-checked {
+  background: #007aff;
+  border-color: #007aff;
+  box-shadow: 0 2px 4px rgba(0, 122, 255, 0.2);
+}
+
+.checkbox-indicator.is-checked svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 悬停效果 */
+.editor-checkbox-item:hover .checkbox-indicator:not(.is-checked) {
+  border-color: #b0b0b0;
+  background: #f8f9fa;
+}
+
+.device-id-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 16px 20px;
+  background: #fffbf0;
+  border-radius: 10px;
+  border: 1px solid #ffeebb;
+  transition: all 0.2s;
+}
+
+.device-id-option:hover {
+  background: #fff8e1;
+  border-color: #ffe082;
+}
+
+.device-id-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #f5a623;
+}
+
+.device-id-option label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5d4037; /* 深棕色文字，保证对比度 */
+  cursor: pointer;
+  user-select: none;
+}
+
+.device-id-option label img {
+  opacity: 0.8;
+  filter: sepia(1) hue-rotate(-10deg) saturate(3); /* 调整图标颜色匹配黄色主题 */
+}
+
+.reset-button-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.reset-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.reset-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.reset-btn.secondary {
+  background: white;
+  color: #333;
+  border: 1px solid #e0e0e0;
+}
+
+.reset-btn.secondary:hover:not(:disabled) {
+  background: #f5f5f7;
+  border-color: #d1d1d6;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+}
+
+.reset-btn.secondary .btn-icon {
+  filter: brightness(0) opacity(0.7);
+}
+
+.reset-btn.danger {
+  background: linear-gradient(135deg, #ff3b30 0%, #ff2d55 100%);
+  color: white;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.reset-btn.danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ff2d55 0%, #ff1a1a 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 59, 48, 0.3);
+}
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-text {
+  letter-spacing: 0.5px;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.secondary .loading-spinner {
+  border-color: rgba(0, 0, 0, 0.1);
+  border-top-color: #333;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 input[type="checkbox"]:disabled + .editor-label {

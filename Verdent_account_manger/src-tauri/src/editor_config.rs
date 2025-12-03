@@ -8,6 +8,8 @@ pub enum EditorType {
     Windsurf,
     Cursor,
     Trae,
+    Qoder,
+    Kiro,
 }
 
 impl EditorType {
@@ -18,6 +20,8 @@ impl EditorType {
             EditorType::Windsurf => "Windsurf",
             EditorType::Cursor => "Cursor",
             EditorType::Trae => "Trae",
+            EditorType::Qoder => "Qoder",
+            EditorType::Kiro => "Kiro",
         }
     }
 
@@ -28,6 +32,8 @@ impl EditorType {
             EditorType::Windsurf => "Windsurf",
             EditorType::Cursor => "Cursor",
             EditorType::Trae => "Trae",
+            EditorType::Qoder => "Qoder",
+            EditorType::Kiro => "Kiro",
         }
     }
 
@@ -83,6 +89,8 @@ impl EditorType {
             EditorType::Windsurf,
             EditorType::Cursor,
             EditorType::Trae,
+            EditorType::Qoder,
+            EditorType::Kiro,
         ]
     }
 
@@ -93,6 +101,8 @@ impl EditorType {
             "windsurf" => Some(EditorType::Windsurf),
             "cursor" => Some(EditorType::Cursor),
             "trae" => Some(EditorType::Trae),
+            "qoder" => Some(EditorType::Qoder),
+            "kiro" => Some(EditorType::Kiro),
             _ => None,
         }
     }

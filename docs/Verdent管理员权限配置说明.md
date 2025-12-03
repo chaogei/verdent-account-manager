@@ -39,7 +39,7 @@ Verdent Account Manager 需要管理员权限来执行以下操作：
    - 支持通过环境变量 `REQUIRE_ADMIN` 控制是否需要管理员权限
 
 2. **`Verdent_account_manger/src-tauri/verdent-account-manager.exe.manifest`**
-   - 更新版本号为 `1.4.0.0`
+   - 更新版本号为 `1.5.2.0`
    - 添加 `Microsoft.Windows.Common-Controls` 依赖
    - 设置 `requestedExecutionLevel` 为 `requireAdministrator`
    - 添加 Windows 兼容性声明（Vista 到 Windows 10/11）

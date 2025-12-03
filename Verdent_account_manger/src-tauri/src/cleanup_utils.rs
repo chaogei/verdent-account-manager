@@ -110,12 +110,41 @@ pub fn clear_verdent_directories_for_editors(editors: &[EditorType]) -> (usize, 
             }
             Err(e) => {
                 eprintln!("    [!] 清理失败: {}", e);
-                // 不中断，继续清理其他文件夹
             }
         }
     }
     
     (total_deleted, cleaned_paths)
+}
+
+/// 删除用户目录下的 .verdent 文件夹
+pub fn delete_verdent_home_directory() -> (usize, Vec<String>) {
+    let mut deleted_count = 0;
+    let mut deleted_paths = Vec::new();
+    
+    if let Some(home) = dirs::home_dir() {
+        let verdent_dir = home.join(".verdent");
+        println!("[*] 删除用户目录下的 .verdent 文件夹: {}", verdent_dir.display());
+        
+        if verdent_dir.exists() {
+            match fs::remove_dir_all(&verdent_dir) {
+                Ok(_) => {
+                    deleted_count += 1;
+                    deleted_paths.push(format!("删除文件夹: {}", verdent_dir.display()));
+                    println!("    [✓] 已删除 .verdent 文件夹");
+                }
+                Err(e) => {
+                    eprintln!("    [×] 无法删除 .verdent 文件夹: {}", e);
+                }
+            }
+        } else {
+            println!("    [!] .verdent 文件夹不存在，跳过");
+        }
+    } else {
+        eprintln!("[!] 无法获取用户主目录");
+    }
+    
+    (deleted_count, deleted_paths)
 }
 
 /// 获取 VS Code state.vscdb 数据库路径

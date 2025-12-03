@@ -1029,6 +1029,15 @@ pub async fn reset_all_storage(generate_new_device_id: bool, selected_editors: O
         println!("[✓] 已清理 {} 个文件/文件夹", dir_count);
     }
 
+    // 4.5 删除用户目录下的 .verdent 文件夹
+    println!("[*] 步骤 4.5: 删除用户目录下的 .verdent 文件夹...");
+    {
+        use crate::cleanup_utils::delete_verdent_home_directory;
+        let (dir_count, deleted_paths) = delete_verdent_home_directory();
+        deleted_count += dir_count;
+        deleted_keys.extend(deleted_paths);
+    }
+
     // 5. 重置编辑器 state.vscdb 中的 deviceId
     if generate_new_device_id {
         println!("[*] 步骤 5: 重置编辑器 state.vscdb 中的 deviceId...");
@@ -1715,6 +1724,403 @@ pub async fn login_to_cursor(token: String) -> Result<LoginToVSCodeResponse, Str
     }
 
     println!("[✓] Cursor 回调链接已发送");
+    println!("[✓] 登录流程完成!");
+    println!("======================================\n");
+
+    Ok(LoginToVSCodeResponse {
+        success: true,
+        error: None,
+    })
+}
+
+#[tauri::command]
+pub async fn login_to_trae(token: String) -> Result<LoginToVSCodeResponse, String> {
+    println!("\n[*] ========== 一键登录到 Trae ==========");
+    println!("[*] Token 长度: {} 字符", token.len());
+
+    // 步骤 1: 生成 PKCE 参数
+    let pkce = PkceParams::generate();
+    println!("[*] 生成 PKCE 参数:");
+    println!("    State: {}", pkce.state);
+    println!("    Code Verifier: {}", pkce.code_verifier);
+    println!("    Code Challenge: {}", pkce.code_challenge);
+
+    // 步骤 2: 使用 token 请求授权码
+    let api = VerdentApi::new();
+    let auth_code = match api.request_auth_code(&token, &pkce).await {
+        Ok(code) => {
+            println!("[✓] 授权码获取成功: {}", code);
+            code
+        },
+        Err(e) => {
+            eprintln!("[×] 获取授权码失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("获取授权码失败: {}。请检查 Token 是否有效或已过期。", e)),
+            });
+        }
+    };
+
+    // 步骤 3: 交换访问令牌
+    let access_token: String = match api.exchange_token(&auth_code, &pkce.code_verifier).await {
+        Ok(token) => {
+            println!("[✓] 访问令牌获取成功");
+            println!("    Token 长度: {} 字符", token.len());
+            token
+        },
+        Err(e) => {
+            eprintln!("[×] 交换访问令牌失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("交换访问令牌失败: {}", e)),
+            });
+        }
+    };
+
+    // 步骤 4: 构建 Trae 回调 URL
+    // 使用 trae:// 协议
+    let callback_url = format!("trae://verdentai.verdent/auth?code={}&state={}", auth_code, pkce.state);
+    println!("[*] 构建 Trae 回调 URL:");
+    println!("    {}", callback_url);
+
+    // 步骤 5: 保存到本地存储
+    use crate::storage::StorageManager;
+    let storage = match StorageManager::new() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[×] 初始化存储管理器失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("初始化存储失败: {}", e)),
+            });
+        }
+    };
+
+    // 保存访问令牌
+    if let Err(e) = storage.save("secrets_ycAuthToken", serde_json::json!({
+        "value": access_token
+    })) {
+        eprintln!("[×] 保存访问令牌失败: {}", e);
+        return Ok(LoginToVSCodeResponse {
+            success: false,
+            error: Some(format!("保存访问令牌失败: {}", e)),
+        });
+    }
+
+    // 保存 API 提供商
+    if let Err(e) = storage.save("globalState_apiProvider", serde_json::json!({
+        "value": "verdent"
+    })) {
+        eprintln!("[×] 保存 API 提供商失败: {}", e);
+    }
+
+    println!("[✓] 访问令牌已保存到本地存储");
+
+    // 步骤 6: 打开 Trae 回调 URL
+    println!("[*] 正在打开 Trae...");
+    println!("    回调 URL: {}", callback_url);
+
+    #[cfg(target_os = "windows")]
+    {
+        println!("    使用 rundll32 打开 URL...");
+        let result = Command::new("rundll32")
+            .args(&["url.dll,FileProtocolHandler", &callback_url])
+            .spawn();
+
+        if let Err(e) = result {
+            eprintln!("[×] 打开 Trae 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Trae 失败。请确保 Trae 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+
+        println!("[✓] 已使用 rundll32 打开 URL");
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        println!("    使用 macOS 命令打开...");
+        if let Err(e) = Command::new("open").arg(&callback_url).spawn() {
+            eprintln!("[×] 打开 Trae 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Trae 失败。请确保 Trae 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        println!("    使用 Linux 命令打开...");
+        if let Err(e) = Command::new("xdg-open").arg(&callback_url).spawn() {
+            eprintln!("[×] 打开 Trae 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Trae 失败。请确保 Trae 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+    }
+
+    println!("[✓] Trae 回调链接已发送");
+    println!("[✓] 登录流程完成!");
+    println!("======================================\n");
+
+    Ok(LoginToVSCodeResponse {
+        success: true,
+        error: None,
+    })
+}
+
+#[tauri::command]
+pub async fn login_to_qoder(token: String) -> Result<LoginToVSCodeResponse, String> {
+    println!("\n[*] ========== 一键登录到 Qoder ==========");
+    println!("[*] Token 长度: {} 字符", token.len());
+
+    let pkce = PkceParams::generate();
+    println!("[*] 生成 PKCE 参数:");
+    println!("    State: {}", pkce.state);
+    println!("    Code Verifier: {}", pkce.code_verifier);
+    println!("    Code Challenge: {}", pkce.code_challenge);
+
+    let api = VerdentApi::new();
+    let auth_code = match api.request_auth_code(&token, &pkce).await {
+        Ok(code) => {
+            println!("[✓] 授权码获取成功: {}", code);
+            code
+        },
+        Err(e) => {
+            eprintln!("[×] 获取授权码失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("获取授权码失败: {}。请检查 Token 是否有效或已过期。", e)),
+            });
+        }
+    };
+
+    let access_token: String = match api.exchange_token(&auth_code, &pkce.code_verifier).await {
+        Ok(token) => {
+            println!("[✓] 访问令牌获取成功");
+            println!("    Token 长度: {} 字符", token.len());
+            token
+        },
+        Err(e) => {
+            eprintln!("[×] 交换访问令牌失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("交换访问令牌失败: {}", e)),
+            });
+        }
+    };
+
+    let callback_url = format!("qoder://verdentai.verdent/auth?code={}&state={}", auth_code, pkce.state);
+    println!("[*] 构建 Qoder 回调 URL:");
+    println!("    {}", callback_url);
+
+    use crate::storage::StorageManager;
+    let storage = match StorageManager::new() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[×] 初始化存储管理器失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("初始化存储失败: {}", e)),
+            });
+        }
+    };
+
+    if let Err(e) = storage.save("secrets_ycAuthToken", serde_json::json!({
+        "value": access_token
+    })) {
+        eprintln!("[×] 保存访问令牌失败: {}", e);
+        return Ok(LoginToVSCodeResponse {
+            success: false,
+            error: Some(format!("保存访问令牌失败: {}", e)),
+        });
+    }
+
+    if let Err(e) = storage.save("globalState_apiProvider", serde_json::json!({
+        "value": "verdent"
+    })) {
+        eprintln!("[×] 保存 API 提供商失败: {}", e);
+    }
+
+    println!("[✓] 访问令牌已保存到本地存储");
+    println!("[*] 正在打开 Qoder...");
+    println!("    回调 URL: {}", callback_url);
+
+    #[cfg(target_os = "windows")]
+    {
+        println!("    使用 rundll32 打开 URL...");
+        let result = Command::new("rundll32")
+            .args(&["url.dll,FileProtocolHandler", &callback_url])
+            .spawn();
+
+        if let Err(e) = result {
+            eprintln!("[×] 打开 Qoder 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Qoder 失败。请确保 Qoder 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+
+        println!("[✓] 已使用 rundll32 打开 URL");
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        println!("    使用 macOS 命令打开...");
+        if let Err(e) = Command::new("open").arg(&callback_url).spawn() {
+            eprintln!("[×] 打开 Qoder 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Qoder 失败。请确保 Qoder 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        println!("    使用 Linux 命令打开...");
+        if let Err(e) = Command::new("xdg-open").arg(&callback_url).spawn() {
+            eprintln!("[×] 打开 Qoder 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Qoder 失败。请确保 Qoder 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+    }
+
+    println!("[✓] Qoder 回调链接已发送");
+    println!("[✓] 登录流程完成!");
+    println!("======================================\n");
+
+    Ok(LoginToVSCodeResponse {
+        success: true,
+        error: None,
+    })
+}
+
+#[tauri::command]
+pub async fn login_to_kiro(token: String) -> Result<LoginToVSCodeResponse, String> {
+    println!("\n[*] ========== 一键登录到 Kiro ==========");
+    println!("[*] Token 长度: {} 字符", token.len());
+
+    let pkce = PkceParams::generate();
+    println!("[*] 生成 PKCE 参数:");
+    println!("    State: {}", pkce.state);
+    println!("    Code Verifier: {}", pkce.code_verifier);
+    println!("    Code Challenge: {}", pkce.code_challenge);
+
+    let api = VerdentApi::new();
+    let auth_code = match api.request_auth_code(&token, &pkce).await {
+        Ok(code) => {
+            println!("[✓] 授权码获取成功: {}", code);
+            code
+        },
+        Err(e) => {
+            eprintln!("[×] 获取授权码失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("获取授权码失败: {}。请检查 Token 是否有效或已过期。", e)),
+            });
+        }
+    };
+
+    let access_token: String = match api.exchange_token(&auth_code, &pkce.code_verifier).await {
+        Ok(token) => {
+            println!("[✓] 访问令牌获取成功");
+            println!("    Token 长度: {} 字符", token.len());
+            token
+        },
+        Err(e) => {
+            eprintln!("[×] 交换访问令牌失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("交换访问令牌失败: {}", e)),
+            });
+        }
+    };
+
+    let callback_url = format!("kiro://verdentai.verdent/auth?code={}&state={}", auth_code, pkce.state);
+    println!("[*] 构建 Kiro 回调 URL:");
+    println!("    {}", callback_url);
+
+    use crate::storage::StorageManager;
+    let storage = match StorageManager::new() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[×] 初始化存储管理器失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("初始化存储失败: {}", e)),
+            });
+        }
+    };
+
+    if let Err(e) = storage.save("secrets_ycAuthToken", serde_json::json!({
+        "value": access_token
+    })) {
+        eprintln!("[×] 保存访问令牌失败: {}", e);
+        return Ok(LoginToVSCodeResponse {
+            success: false,
+            error: Some(format!("保存访问令牌失败: {}", e)),
+        });
+    }
+
+    if let Err(e) = storage.save("globalState_apiProvider", serde_json::json!({
+        "value": "verdent"
+    })) {
+        eprintln!("[×] 保存 API 提供商失败: {}", e);
+    }
+
+    println!("[✓] 访问令牌已保存到本地存储");
+    println!("[*] 正在打开 Kiro...");
+    println!("    回调 URL: {}", callback_url);
+
+    #[cfg(target_os = "windows")]
+    {
+        println!("    使用 rundll32 打开 URL...");
+        let result = Command::new("rundll32")
+            .args(&["url.dll,FileProtocolHandler", &callback_url])
+            .spawn();
+
+        if let Err(e) = result {
+            eprintln!("[×] 打开 Kiro 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Kiro 失败。请确保 Kiro 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+
+        println!("[✓] 已使用 rundll32 打开 URL");
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        println!("    使用 macOS 命令打开...");
+        if let Err(e) = Command::new("open").arg(&callback_url).spawn() {
+            eprintln!("[×] 打开 Kiro 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Kiro 失败。请确保 Kiro 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        println!("    使用 Linux 命令打开...");
+        if let Err(e) = Command::new("xdg-open").arg(&callback_url).spawn() {
+            eprintln!("[×] 打开 Kiro 失败: {}", e);
+            return Ok(LoginToVSCodeResponse {
+                success: false,
+                error: Some(format!("打开 Kiro 失败。请确保 Kiro 已安装并且 Verdent 插件已启用。错误: {}", e)),
+            });
+        }
+    }
+
+    println!("[✓] Kiro 回调链接已发送");
     println!("[✓] 登录流程完成!");
     println!("======================================\n");
 

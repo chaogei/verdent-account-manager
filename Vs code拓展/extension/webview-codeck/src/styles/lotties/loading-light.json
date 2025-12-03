@@ -1,0 +1,51 @@
+{
+	"v": "5.9.3",
+	"fr": 25,
+	"ip": 0,
+	"op": 25,
+	"w": 80,
+	"h": 80,
+	"nm": "加载-drak",
+	"ddd": 0,
+	"assets": [
+		{
+			"id": "image_0",
+			"w": 80,
+			"h": 80,
+			"u": "",
+			"p": "data:image/png;base64,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",
+			"e": 1
+		}
+	],
+	"layers": [
+		{
+			"ddd": 0,
+			"ind": 2,
+			"ty": 2,
+			"nm": "加载-light.png",
+			"cl": "png",
+			"refId": "image_0",
+			"sr": 1,
+			"ks": {
+				"o": { "a": 0, "k": 100, "ix": 11 },
+				"r": {
+					"a": 1,
+					"k": [
+						{ "i": { "x": [0.833], "y": [0.833] }, "o": { "x": [0.167], "y": [0.167] }, "t": 0, "s": [0] },
+						{ "t": 25, "s": [360] }
+					],
+					"ix": 10
+				},
+				"p": { "a": 0, "k": [40, 40, 0], "ix": 2, "l": 2 },
+				"a": { "a": 0, "k": [40, 40, 0], "ix": 1, "l": 2 },
+				"s": { "a": 0, "k": [-100, 100, 100], "ix": 6, "l": 2 }
+			},
+			"ao": 0,
+			"ip": 0,
+			"op": 25,
+			"st": 0,
+			"bm": 0
+		}
+	],
+	"markers": []
+}

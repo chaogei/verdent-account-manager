@@ -241,6 +241,9 @@ function handleCardClick(event: MouseEvent) {
 const loginLoading = ref(false)
 const loginWindsurfLoading = ref(false)
 const loginCursorLoading = ref(false)
+const loginTraeLoading = ref(false)
+const loginQoderLoading = ref(false)
+const loginKiroLoading = ref(false)
 const loginVerdentClientLoading = ref(false)
 const testLoginLoading = ref(false)
 
@@ -363,6 +366,95 @@ async function handleLoginCursor() {
     emit('showToast', `登录失败: ${error}`, 'error')
   } finally {
     loginCursorLoading.value = false
+  }
+}
+
+async function handleLoginTrae() {
+  if (!props.account.token) {
+    console.error('该账户没有 Token,无法登录')
+    return
+  }
+
+  try {
+    loginTraeLoading.value = true
+
+    // 调用后端命令进行登录到 Trae
+    const result = await invoke<{ success: boolean; error?: string }>('login_to_trae', {
+      token: props.account.token
+    })
+
+    if (result.success) {
+      console.log('✅ 已发送登录请求到 Trae')
+      emit('showToast', '已发送登录请求到 Trae', 'success')
+      // 设置为当前使用的账号
+      emit('setCurrent', props.account.id)
+    } else {
+      console.error(`❌ 登录失败: ${result.error || '未知错误'}`)
+      emit('showToast', `登录失败: ${result.error || '未知错误'}`, 'error')
+    }
+  } catch (error) {
+    console.error('登录失败:', error)
+    emit('showToast', `登录失败: ${error}`, 'error')
+  } finally {
+    loginTraeLoading.value = false
+  }
+}
+
+async function handleLoginQoder() {
+  if (!props.account.token) {
+    console.error('该账户没有 Token,无法登录')
+    return
+  }
+
+  try {
+    loginQoderLoading.value = true
+
+    const result = await invoke<{ success: boolean; error?: string }>('login_to_qoder', {
+      token: props.account.token
+    })
+
+    if (result.success) {
+      console.log('✅ 已发送登录请求到 Qoder')
+      emit('showToast', '已发送登录请求到 Qoder', 'success')
+      emit('setCurrent', props.account.id)
+    } else {
+      console.error(`❌ 登录失败: ${result.error || '未知错误'}`)
+      emit('showToast', `登录失败: ${result.error || '未知错误'}`, 'error')
+    }
+  } catch (error) {
+    console.error('登录失败:', error)
+    emit('showToast', `登录失败: ${error}`, 'error')
+  } finally {
+    loginQoderLoading.value = false
+  }
+}
+
+async function handleLoginKiro() {
+  if (!props.account.token) {
+    console.error('该账户没有 Token,无法登录')
+    return
+  }
+
+  try {
+    loginKiroLoading.value = true
+
+    const result = await invoke<{ success: boolean; error?: string }>('login_to_kiro', {
+      token: props.account.token
+    })
+
+    if (result.success) {
+      console.log('✅ 已发送登录请求到 Kiro')
+      emit('showToast', '已发送登录请求到 Kiro', 'success')
+      emit('setCurrent', props.account.id)
+    } else {
+      console.error(`❌ 登录失败: ${result.error || '未知错误'}`)
+      emit('showToast', `登录失败: ${result.error || '未知错误'}`, 'error')
+    }
+  } catch (error) {
+    console.error('登录失败:', error)
+    emit('showToast', `登录失败: ${error}`, 'error')
+  } finally {
+    loginKiroLoading.value = false
   }
 }
 
@@ -709,6 +801,36 @@ async function handleLoginVerdentClient(skipConfirm = false) {
           title="使用 Token 登录到 Cursor"
         >
           <img src="/cursor.svg" alt="Cursor" class="btn-icon" :class="{ 'loading-spin': loginCursorLoading }" />
+        </button>
+
+        <!-- Trae 登录按钮 -->
+        <button
+          class="login-btn trae-btn"
+          @click="handleLoginTrae"
+          :disabled="!account.token || loginTraeLoading"
+          title="使用 Token 登录到 Trae"
+        >
+          <img src="/Trae.png" alt="Trae" class="btn-icon" :class="{ 'loading-spin': loginTraeLoading }" />
+        </button>
+
+        <!-- Qoder 登录按钮 -->
+        <button
+          class="login-btn qoder-btn"
+          @click="handleLoginQoder"
+          :disabled="!account.token || loginQoderLoading"
+          title="使用 Token 登录到 Qoder"
+        >
+          <img src="/Qoder.png" alt="Qoder" class="btn-icon" :class="{ 'loading-spin': loginQoderLoading }" />
+        </button>
+
+        <!-- Kiro 登录按钮 -->
+        <button
+          class="login-btn kiro-btn"
+          @click="handleLoginKiro"
+          :disabled="!account.token || loginKiroLoading"
+          title="使用 Token 登录到 Kiro"
+        >
+          <img src="/Kiro.svg" alt="Kiro" class="btn-icon" :class="{ 'loading-spin': loginKiroLoading }" />
         </button>
 
         <!-- Verdent 客户端登录按钮 -->
@@ -1129,6 +1251,21 @@ async function handleLoginVerdentClient(skipConfirm = false) {
 .login-btn.cursor-btn:hover:not(:disabled) {
   background: #e8f5e8;
   border-color: #34c759;
+}
+
+.login-btn.trae-btn:hover:not(:disabled) {
+  background: #f5f5f7;
+  border-color: #1d1d1f;
+}
+
+.login-btn.qoder-btn:hover:not(:disabled) {
+  background: #e0f7fa;
+  border-color: #00bcd4;
+}
+
+.login-btn.kiro-btn:hover:not(:disabled) {
+  background: #ede4ff;
+  border-color: #9046FF;
 }
 
 .login-btn.verdent-client-btn:hover:not(:disabled) {
