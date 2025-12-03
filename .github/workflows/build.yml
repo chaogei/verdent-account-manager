@@ -234,33 +234,15 @@ jobs:
       - name: 准备插件文件
         run: |
           echo "=== 准备 VSCode 插件文件 ==="
-          # 创建临时目录
           mkdir -p vscode-temp
           
-          # 尝试不同的方式访问文件夹
+          # 复制所有 .vsix 插件文件（保留原名称）
           if [ -d "Vs code拓展" ]; then
             echo "Found directory: Vs code拓展"
-            # 复制所有 .vsix 文件到临时目录
             cp "Vs code拓展"/*.vsix vscode-temp/ 2>/dev/null || true
           fi
           
-          # 备用方案：使用 find 命令
-          find . -path "./Vs code*/*.vsix" -type f -exec cp {} vscode-temp/ \; 2>/dev/null || true
-          
-          # 检查结果
-          echo "Files in vscode-temp:"
-          ls -la vscode-temp/
-          
-          # 重命名文件（移除空格和特殊字符）
-          for file in vscode-temp/*.vsix; do
-            if [ -f "$file" ]; then
-              # 获取第一个文件并重命名为标准名称
-              mv "$file" vscode-temp/VerdentAI-Enhanced.vsix
-              break
-            fi
-          done
-          
-          echo "=== Final files ==="
+          echo "=== 插件文件列表 ==="
           ls -la vscode-temp/
           echo "=================="
       
@@ -316,15 +298,11 @@ jobs:
           find artifacts -name "*.deb" -type f -exec cp {} release_files/ \;
           find artifacts -name "*.AppImage" -type f -exec cp {} release_files/ \;
           
-          # 复制 VSCode 插件
-          # 查找第一个 .vsix 文件并重命名
-          vsix_file=$(find artifacts -name "*.vsix" -type f | head -1)
-          if [ -n "$vsix_file" ]; then
-            echo "Found VSCode extension: $vsix_file"
-            cp "$vsix_file" release_files/VerdentAI-Enhanced.vsix
-          else
-            echo "Warning: No VSCode extension found"
-          fi
+          # 复制 VSCode 插件（保留原名称，仅 .vsix）
+          find artifacts -name "*.vsix" -type f -exec cp {} release_files/ \;
+          
+          echo "=== VSCode 插件文件 ==="
+          ls -la release_files/*.vsix 2>/dev/null || echo "No extension files found"
           
           # 显示最终文件列表
           echo "=== Release files ==="
@@ -348,11 +326,12 @@ jobs:
           - **AppImage**：通用 Linux 包，无需安装
           
           ### VSCode 插件
-          - **VerdentAI-Enhanced.vsix**：增强版 VSCode 插件
+          - **verdentai.verdent-x.x.x.vsix**：增强版 VSCode 插件
+          - 功能特性：
             - 无缝账号切换功能
             - 移除账号限制
             - 支持多账号管理
-            - 安装方法：在 VSCode 中按 Ctrl+Shift+P，输入 "Install from VSIX"，选择下载的 .vsix 文件
+          - 安装方法：在 VSCode 中按 Ctrl+Shift+P，输入 "Install from VSIX"，选择下载的 .vsix 文件
           
           ## ✨ 主要功能
           - 批量账号管理
