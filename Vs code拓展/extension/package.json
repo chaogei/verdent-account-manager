@@ -2,7 +2,7 @@
 	"name": "verdent",
 	"displayName": "Verdent for VS Code: State-of-the-art AI Coding Agent",
 	"description": "The leading all-in-one coding agent for top-tier AI models — integrated, orchestrated, and fully unleashed. Achieved the highest SWE-bench Verified results among real production-level agents, including Claude-Code and Codex.",
-	"version": "1.5.2",
+	"version": "1.5.3",
 	"icon": "assets/icons/icon.png",
 	"engines": {
 		"vscode": "^1.90.0"

@@ -976,37 +976,8 @@ pub async fn reset_all_storage(generate_new_device_id: bool, selected_editors: O
         println!("[*] 跳过编辑器设备标识重置（根据参数设置）");
     }
 
-    // 3. 删除所有账户
-    println!("[*] 步骤 3: 删除所有账户...");
-    match AccountManager::new() {
-        Ok(account_mgr) => {
-            match account_mgr.get_all_accounts() {
-                Ok(accounts) => {
-                    let account_count = accounts.len();
-                    for account in accounts {
-                        if let Err(e) = account_mgr.delete_account(&account.id) {
-                            eprintln!("[!] 删除账户 {} 失败: {}", account.email, e);
-                        } else {
-                            deleted_keys.push(format!("account:{}", account.email));
-                        }
-                    }
-                    deleted_count += account_count;
-                    println!("[✓] 已删除 {} 个账户", account_count);
-                }
-                Err(e) => {
-                    eprintln!("[!] 获取账户列表失败: {}", e);
-                    println!("[!] 跳过账户删除");
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("[!] 创建 AccountManager 失败: {}", e);
-            println!("[!] 跳过账户删除");
-        }
-    }
-
-    // 4. 清空 Verdent 相关文件夹内容
-    println!("[*] 步骤 4: 清空 Verdent 相关文件夹...");
+    // 3. 清空 Verdent 相关文件夹内容（不删除账户数据）
+    println!("[*] 步骤 3: 清空 Verdent 相关文件夹...");
     {
         // 解析选中的编辑器列表（如果没有提供，默认清理所有编辑器）
         let editors_to_clean = if let Some(ref editor_names) = selected_editors {
@@ -1029,8 +1000,8 @@ pub async fn reset_all_storage(generate_new_device_id: bool, selected_editors: O
         println!("[✓] 已清理 {} 个文件/文件夹", dir_count);
     }
 
-    // 4.5 删除用户目录下的 .verdent 文件夹
-    println!("[*] 步骤 4.5: 删除用户目录下的 .verdent 文件夹...");
+    // 3.5 删除用户目录下的 .verdent 文件夹
+    println!("[*] 步骤 3.5: 删除用户目录下的 .verdent 文件夹...");
     {
         use crate::cleanup_utils::delete_verdent_home_directory;
         let (dir_count, deleted_paths) = delete_verdent_home_directory();
@@ -1038,9 +1009,9 @@ pub async fn reset_all_storage(generate_new_device_id: bool, selected_editors: O
         deleted_keys.extend(deleted_paths);
     }
 
-    // 5. 重置编辑器 state.vscdb 中的 deviceId
+    // 4. 重置编辑器 state.vscdb 中的 deviceId
     if generate_new_device_id {
-        println!("[*] 步骤 5: 重置编辑器 state.vscdb 中的 deviceId...");
+        println!("[*] 步骤 4: 重置编辑器 state.vscdb 中的 deviceId...");
         use crate::cleanup_utils::reset_editors_device_id;
         
         // 使用与步骤2相同的编辑器列表
@@ -1074,9 +1045,9 @@ pub async fn reset_all_storage(generate_new_device_id: bool, selected_editors: O
         println!("[*] 跳过编辑器 state.vscdb deviceId 重置（根据参数设置）");
     }
 
-    // 6. 重置机器码（仅 Windows）
+    // 5. 重置机器码（仅 Windows）
     if generate_new_device_id && cfg!(target_os = "windows") {
-        println!("[*] 步骤 6: 重置机器码...");
+        println!("[*] 步骤 5: 重置机器码（MachineGuid）...");
         use crate::machine_guid::MachineGuidManager;
         
         match MachineGuidManager::new() {
@@ -3525,4 +3496,19 @@ pub async fn get_installed_editors() -> Result<Vec<String>, String> {
         .iter()
         .map(|e| e.display_name().to_string())
         .collect())
+}
+
+#[tauri::command]
+pub async fn check_for_updates(current_version: String) -> Result<crate::updater::UpdateInfo, String> {
+    crate::updater::check_for_updates(&current_version).await
+}
+
+#[tauri::command]
+pub async fn skip_version(version: String) -> Result<(), String> {
+    crate::updater::save_skipped_version(version)
+}
+
+#[tauri::command]
+pub async fn clear_skipped_version() -> Result<(), String> {
+    crate::updater::clear_skipped_version()
 }

@@ -1,8 +1,13 @@
 # Changelog
+## V 1.5.3 2025/12/03
 
-## V 1.1.0 2025/11/26
+**Experience Improvements & Bug Fixes**
+* Improved clarification: supports streaming output, and adds a confirmation step when rolling back.
+* Fixed several bugs.
 
-Smarter Planning, Better Collaboration, and Smoother Conversations
+## V 1.5.0 2025/11/26
+
+**Smarter Planning, Better Collaboration, and Smoother Conversations**
 
 **New Features:**
 

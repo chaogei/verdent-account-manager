@@ -12,6 +12,7 @@ mod pkce;
 mod proxy_manager;
 mod settings_manager;
 mod storage;
+mod updater;
 mod verdent_client;
 mod vscode_storage;
 
@@ -123,6 +124,9 @@ pub fn run() {
             debug_print_settings,
             get_all_editors_info,
             get_installed_editors,
+            check_for_updates,
+            skip_version,
+            clear_skipped_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

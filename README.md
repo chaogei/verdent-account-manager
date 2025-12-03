@@ -400,8 +400,8 @@ sudo dnf install webkit2gtk4.1 gtk3
 
 ## 📮 联系方式
 
-- 项目主页: [https://github.com/chaogei/Verdent](https://github.com/chaogei/Verdent)
-- Issues: [https://github.com/chaogei/Verdent/issues](https://github.com/chaogei/Verdent/issues)
+- 项目主页: [https://github.com/chaogei/verdent-account-manager](https://github.com/chaogei/verdent-account-manager)
+- Issues: [https://github.com/chaogei/verdent-account-manager/issues](https://github.com/chaogei/verdent-account-manager/issues)
 - Email: chaogei666@gmail.com
 
 ---

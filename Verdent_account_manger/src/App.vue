@@ -3,8 +3,10 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { open, confirm as tauriConfirm, message as tauriMessage } from '@tauri-apps/plugin-dialog'
+import { open as shellOpen } from '@tauri-apps/plugin-shell'
 import AccountManager from './components/AccountManager.vue'
 import Toast from './components/Toast.vue'
+import UpdateDialog from './components/UpdateDialog.vue'
 
 interface LoginRequest {
   token: string
@@ -56,6 +58,16 @@ interface EditorInfo {
   state_db_path: string | null
 }
 
+interface UpdateInfo {
+  has_update: boolean
+  current_version: string
+  latest_version?: string
+  release_name?: string
+  release_notes?: string
+  download_url?: string
+  published_at?: string
+}
+
 const activeTab = ref<'login' | 'reset' | 'accounts'>('accounts')
 const debugSettings = ref('')  // 调试：配置文件内容
 const token = ref('')
@@ -89,6 +101,16 @@ const showToast = ref(false)
 const toastMessage = ref('')
 const toastType = ref<'success' | 'error' | 'info' | 'warning'>('success')
 
+// 群二维码弹窗状态
+const showQrCode = ref(false)
+
+// 更新检测相关状态
+const showUpdateDialog = ref(false)
+const updateInfo = ref<UpdateInfo | null>(null)
+const updateLoading = ref(false)
+const updateError = ref('')
+const isManualUpdateCheck = ref(false)
+
 onMounted(async () => {
   await loadStorageInfo()
   await loadVSCodeIds()
@@ -118,8 +140,8 @@ onMounted(async () => {
     managerVersion.value = version
   } catch (error) {
     console.error('获取版本号失败:', error)
-    // 保持默认值 1.5.2
-    managerVersion.value = '1.5.2'
+    // 保持默认值 1.5.3
+    managerVersion.value = '1.5.3'
   }
   
   // 获取账号存储路径
@@ -129,6 +151,9 @@ onMounted(async () => {
   } catch (error) {
     accountsStoragePath.value = '获取失败'
   }
+  
+  // 启动时自动检查更新（静默检测）
+  checkForUpdatesOnStartup()
   
   // 禁用右键菜单
   document.addEventListener('contextmenu', handleContextMenu)
@@ -444,6 +469,91 @@ function handleToastClose() {
   showToast.value = false
 }
 
+async function handleOpenGitHub() {
+  const confirmed = await tauriConfirm('是否打开 GitHub 项目页面？', {
+    title: '打开链接',
+    okLabel: '确定',
+    cancelLabel: '取消',
+    kind: 'info'
+  })
+  
+  if (confirmed) {
+    try {
+      await shellOpen('https://github.com/chaogei/verdent-account-manager')
+    } catch (error) {
+      console.error('打开链接失败:', error)
+      showMessage('error', '打开链接失败')
+    }
+  }
+}
+
+async function checkForUpdatesOnStartup() {
+  try {
+    const info = await invoke<UpdateInfo>('check_for_updates', {
+      currentVersion: managerVersion.value
+    })
+    
+    if (info.has_update) {
+      updateInfo.value = info
+      showUpdateDialog.value = true
+      isManualUpdateCheck.value = false
+    }
+  } catch (error) {
+    console.error('自动检查更新失败:', error)
+  }
+}
+
+async function checkForUpdatesManually() {
+  updateLoading.value = true
+  updateError.value = ''
+  showUpdateDialog.value = true
+  isManualUpdateCheck.value = true
+  
+  try {
+    const info = await invoke<UpdateInfo>('check_for_updates', {
+      currentVersion: managerVersion.value
+    })
+    
+    updateInfo.value = info
+    
+    if (!info.has_update) {
+      showMessage('success', '当前已是最新版本')
+    }
+  } catch (error) {
+    console.error('检查更新失败:', error)
+    updateError.value = error instanceof Error ? error.message : '检查更新失败，请稍后重试'
+    showMessage('error', '检查更新失败')
+  } finally {
+    updateLoading.value = false
+  }
+}
+
+function handleUpdateDialogClose() {
+  showUpdateDialog.value = false
+  updateInfo.value = null
+  updateError.value = ''
+}
+
+function handleUpdateClick() {
+  showUpdateDialog.value = false
+  showMessage('info', '正在打开下载页面...')
+}
+
+async function handleSkipVersion() {
+  if (updateInfo.value?.latest_version) {
+    try {
+      await invoke('skip_version', {
+        version: updateInfo.value.latest_version
+      })
+      showMessage('success', '已跳过此版本')
+      showUpdateDialog.value = false
+    } catch (error) {
+      console.error('跳过版本失败:', error)
+      showMessage('error', '操作失败')
+    }
+  }
+}
+
 async function loadProxySettings() {
   try {
     const settings = await invoke<{ enabled: boolean; url: string }>('get_proxy_settings')
@@ -737,12 +847,35 @@ async function loadAvailableEditors() {
       :duration="3000"
       @close="handleToastClose"
     />
+    
+    <!-- 更新对话框 -->
+    <UpdateDialog
+      :show="showUpdateDialog"
+      :update-info="updateInfo"
+      :loading="updateLoading"
+      :error="updateError"
+      :is-manual-check="isManualUpdateCheck"
+      @close="handleUpdateDialogClose"
+      @update="handleUpdateClick"
+      @skip="handleSkipVersion"
+    />
+    
     <div class="header">
       <h1>
         <img src="/verdent-long.svg" alt="Verdent" class="verdent-logo" />
         账号管理器
       </h1>
       <div class="header-actions">
+        <button class="header-btn github-btn" @click="handleOpenGitHub" title="GitHub 项目地址">
+          <svg class="header-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+          </svg>
+        </button>
+        <button class="header-btn qrcode-btn" @click="showQrCode = true" title="加入微信群">
+          <svg class="header-icon" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.837-6.656-6.088V8.89c-.135-.007-.264-.03-.406-.032zm-2.62 3.195c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982z"/>
+          </svg>
+        </button>
         <button class="header-btn settings-btn" @click="showProxySettings = !showProxySettings" title="代理设置">
           <img src="/设置.svg" alt="设置" class="header-icon" />
         </button>
@@ -763,7 +896,18 @@ async function loadAvailableEditors() {
         <div class="modal-body">
           <div class="info-item">
             <div class="info-label">管理器版本</div>
-            <input :value="managerVersion" type="text" class="info-input" readonly />
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <input :value="managerVersion" type="text" class="info-input" readonly style="flex: 1;" />
+              <button 
+                class="check-update-btn" 
+                @click="checkForUpdatesManually"
+                title="检查更新"
+              >
+                <svg class="update-icon" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                </svg>
+              </button>
+            </div>
             <div class="info-hint">Verdent账号管理器软件版本</div>
           </div>
           <div class="info-item">
@@ -862,6 +1006,22 @@ async function loadAvailableEditors() {
         <div class="modal-footer">
           <button class="btn-secondary" @click="showProxySettings = false">取消</button>
           <button class="btn-primary" @click="saveProxySettings">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 群二维码弹窗 -->
+    <div v-if="showQrCode" class="modal-overlay" @click="showQrCode = false">
+      <div class="modal-content qrcode-modal" @click.stop>
+        <div class="modal-header">
+          <h2>加入微信群</h2>
+          <button class="modal-close" @click="showQrCode = false">
+            <img src="/icon-close.svg" alt="关闭" class="close-icon" />
+          </button>
+        </div>
+        <div class="modal-body qrcode-body">
+          <img src="/微信群.jpg" alt="微信群二维码" class="qrcode-image" />
+          <p class="qrcode-hint">扫描二维码加入微信群</p>
         </div>
       </div>
     </div>
@@ -1176,6 +1336,45 @@ async function loadAvailableEditors() {
 </template>
 
 <style scoped>
+.github-btn svg,
+.qrcode-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.github-btn:hover svg,
+.qrcode-btn:hover svg {
+  opacity: 1;
+}
+
+.qrcode-modal {
+  max-width: 360px;
+}
+
+.qrcode-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+}
+
+.qrcode-image {
+  max-width: 280px;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+}
+
+.qrcode-hint {
+  margin-top: 16px;
+  color: #666;
+  font-size: 14px;
+}
+
 .editor-selection-section {
   margin: 20px 0;
   padding: 20px;
@@ -1522,5 +1721,62 @@ input[type="checkbox"]:disabled + .editor-label {
   color: #333;
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+.check-update-btn {
+  padding: 6px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.check-update-btn:hover {
+  background: #007aff;
+  border-color: #007aff;
+}
+
+.check-update-btn:hover .update-icon {
+  fill: white;
+}
+
+.update-icon {
+  width: 18px;
+  height: 18px;
+  fill: #666;
+  transition: fill 0.2s ease;
+}
+
+.open-folder-btn {
+  padding: 6px;
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.open-folder-btn:hover {
+  background: #007aff;
+  border-color: #007aff;
+}
+
+.folder-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.open-folder-btn:hover .folder-icon {
+  opacity: 1;
+  filter: brightness(0) invert(1);
 }
 </style>

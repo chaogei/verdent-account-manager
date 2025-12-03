@@ -17,7 +17,7 @@ fn main() {
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <assemblyIdentity
-    version="1.5.2.0"
+    version="1.5.3.0"
     processorArchitecture="*"
     name="ai.verdent.account-manager"
     type="win32"
