@@ -283,6 +283,13 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v4
 
+      - name: 读取软件版本号
+        id: get_version
+        run: |
+          VERSION=$(jq -r '.version' Verdent_account_manger/src-tauri/tauri.conf.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Software version: $VERSION"
+
       - name: 下载所有构建产物
         uses: actions/download-artifact@v4
         with:
@@ -363,8 +370,8 @@ jobs:
         with:
           draft: true
           generate_release_notes: true
-          tag_name: "${{ github.ref_type == 'tag' && github.ref_name || format('manual-{0}', github.run_number) }}"
-          name: "${{ github.ref_type == 'tag' && format('Verdent账号管理器 {0}', github.ref_name) || format('Verdent账号管理器 测试版本 #{0}', github.run_number) }}"
+          tag_name: "v${{ steps.get_version.outputs.version }}"
+          name: "Verdent账号管理器 v${{ steps.get_version.outputs.version }}"
           body_path: release_notes.md
           files: release_files/*
           fail_on_unmatched_files: false
